@@ -1,0 +1,3 @@
+[submodule "3rdparty/blazerml-tvm"]
+	path = 3rdparty/blazerml-tvm
+	url = https://git.woa.com/deep_learning_framework/BlazerML/BlazerML-tvm.git
