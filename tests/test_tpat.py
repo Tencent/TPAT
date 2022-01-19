@@ -34,8 +34,9 @@ import torch
 import json
 import pytest
 from onnxruntime import backend
-sys.path.append('../../../../')
-from python.gpu import *
+
+sys.path.append("..")
+from python import *
 
 tf.set_random_seed(1234)
 np.random.seed(0)

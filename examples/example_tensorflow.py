@@ -26,8 +26,9 @@ import tensorrt as trt
 import tensorflow as tf
 import tf2onnx
 import ctypes
-sys.path.append('../..')
-from python.gpu import *
+
+sys.path.append("..")
+from python import *
 
 # import torch
 
