@@ -13,37 +13,42 @@
 
 
 ## 环境配置
-1. Blazer-TVM
-   
-   [qianqiu/TPAT_v0.8rc](https://git.woa.com/wenxizhu/BlazerML-TVM/tree/qianqiu/TPAT_v0.8rc) 分支；
-   
-   ```
-   mkdir build && cp -r cmake/config.cmake build
-   #修改config.cmake
-   set(USE_LLVM /usr/local/llvm/bin/llvm-config)
-   set(USE_CUDA ON)
-   cd build && make -j
-   ```
+1. 获取TPAT项目
 
-2. TensorRT
+    使用 `git clone --recursive` 下载TPAT项目或是
+    `git clone` 配合 `git submodule init && git submodule update`来获取BlazerML-TVM源码
+
+2. BlazerML-TVM
+   
+    BlazerML-TVM 的编译需要`LLVM >= 9.0.1`与`GCC >= 7.3.0`;推荐`LLVM==9.0.1` && `GCC==7.4.0`
+   
+    ```
+    mkdir build && cp -r cmake/config.cmake build
+    #修改config.cmake
+    set(USE_LLVM /usr/local/llvm/bin/llvm-config)
+    set(USE_CUDA ON)
+    # 需要支持C++14的gcc编译器
+    cd build && cmake .. 
+    make -j
+    ```
+
+3. TensorRT
 
     [安装TensorRT](https://github.com/NVIDIA/TensorRT)
 
-3. TPAT
+4. TPAT
 
     Python3 Env
     ```
-    pip3 install numpy, tensorflow-gpu==1.15, pycuda, tensorrt, tf2onnx,
-     torch, pytest, onnx, onnxruntime, onnx_graphsurgeon, xgboost, 
-     jinja2, ctypes, tornado, cloudpickle, psutil
+    pip3 install numpy, tensorflow-gpu==1.15, pycuda, tensorrt, tf2onnx,torch, pytest, onnx, onnxruntime, onnx_graphsurgeon, xgboost, jinja2, ctypes, tornado, cloudpickle, psutil
     ```
     Plugin Compiler Env
     ```
-    python/gpu/trt_plugin/Makefile : CUDA_PATH 修改为本机的CUDA路径, TRT_LIB_PATH修改为本机TRT路径
+    python/trt_plugin/Makefile : CUDA_PATH 修改为本机的CUDA路径, TRT_LIB_PATH修改为本机TRT路径
 
     ```
 
-4. 软链 [model](/python/gpu/model), [trt_plugin](/python/gpu/trt_plugin) 文件夹到工作目录下: 例如 [example](/examples/gpu/example_tensorflow.py) 和 [unittest](/tests/python/unittests/gpu/test_tpat.py)
+5. 软链 [model](/python/gpu/model), [trt_plugin](/python/gpu/trt_plugin) 文件夹到工作目录下: 例如 [example](/examples/gpu/example_tensorflow.py) 和 [unittest](/tests/python/unittests/gpu/test_tpat.py)
 
 
 ## 用法
