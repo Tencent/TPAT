@@ -14,26 +14,22 @@
 # limitations under the License.
 #
 
+import os
+import sys
+import ctypes
 from datetime import datetime
 import numpy as np
-import os, sys
-
-i_gpu = 0
-os.environ["CUDA_VISIBLE_DEVICES"] = str(i_gpu)
 import pycuda.driver as cuda
-import pycuda.autoinit
 import tensorrt as trt
 import tensorflow as tf
-import tf2onnx
-import ctypes
-
 sys.path.append("..")
 from python import *
-
 # import torch
-
 # TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+IGPU = 0
+os.environ["CUDA_VISIBLE_DEVICES"] = str(IGPU)
 TRT_LOGGER = trt.Logger(trt.Logger.VERBOSE)
+
 
 # Simple helper data class that's a little nicer to use than a 2-tuple.
 class HostDeviceMem(object):
@@ -98,7 +94,7 @@ def main():
     config.gpu_options.allow_growth = True
 
     with tf.Session(config=config) as sess:
-        ### test reduce
+        # test reduce
         op_name = "rightshift"
         batch_size = 100
         dtype = "int32"
@@ -137,15 +133,14 @@ def main():
     input_model_file = "model/test_op_plugin.onnx"
     output_model_file = "model/test_op_trt.onnx"
     os.system(
-        "python3 -m tf2onnx.convert --input model/test_op_{}.pb --inputs {} --outputs {} --output {} --verbose --opset 11".format(
+        "python3 -m tf2onnx.convert --input model/test_op_{}.pb --inputs {} --outputs {} --output {} \
+            --verbose --opset 11".format(
             op_name,
             str(",").join(input_with_num),
             str(",").join(output_with_num),
             input_model_file,
         )
     )
-
-    tuning_op_type = ["BitShift"]
 
     node_names = [op_name]
     trt_plugin_names = onnx2plugin(
@@ -170,7 +165,7 @@ def main():
             for i in range(parser.num_errors):
                 print(parser.get_error(i))
         engine = builder.build_engine(network, builder_config)
-        if engine == None:
+        if engine is None:
             print("[ERROR] engine is None")
             exit(-1)
 

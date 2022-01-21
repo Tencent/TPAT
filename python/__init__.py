@@ -1,7 +1,7 @@
-from .Onnx2Plugin import onnx2plugin
-from .CudaKernel import CudaKernel
-from .PluginTemplate import PluginTemplate
-from .PluginTemplateParams import PluginTemplateParams
+from .onnx_to_plugin import onnx2plugin
+from .cuda_kernel import CudaKernel
+from .plugin_template import PluginTemplate
+from .plugin_template_params import PluginTemplateParams
 from .unsupported_ops import unsupported_ops, no_needed_plugin_ops
 from .type_mapping import (
     tvm_to_c_type_mapping,

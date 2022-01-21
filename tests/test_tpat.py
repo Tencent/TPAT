@@ -14,40 +14,35 @@
 # limitations under the License.
 #
 
-from datetime import datetime
+import os
+import sys
+import ctypes
 import numpy as np
-import os, sys
 from onnx.backend.test.case.node import _extract_value_info
-
-import onnx, onnxruntime
+import onnx
 from onnx import TensorProto, helper, mapping, numpy_helper
-
-i_gpu = 0
-os.environ["CUDA_VISIBLE_DEVICES"] = str(i_gpu)
 import pycuda.driver as cuda
-import pycuda.autoinit
 import tensorrt as trt
 import tensorflow as tf
-import tf2onnx
-import ctypes
 import torch
-import json
 import pytest
-from onnxruntime import backend
-
 sys.path.append("..")
 from python import *
 
+i_gpu = 0
+os.environ["CUDA_VISIBLE_DEVICES"] = str(i_gpu)
 tf.set_random_seed(1234)
 np.random.seed(0)
-iterations = 10
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-input_model_file = "model/test_op_plugin.onnx"
-output_model_file = "model/test_op_trt.onnx"
+ITERATIONS = 10
+CONFIG = tf.ConfigProto()
+CONFIG.gpu_options.allow_growth = True
+INPUT_MODEL_FILE = "model/test_op_plugin.onnx"
+OUTPUT_MODEL_FILE = "model/test_op_trt.onnx"
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 # TRT_LOGGER = trt.Logger(trt.Logger.VERBOSE)
-batch_size = 1
+BATCH_SIZE = 1
+
+
 # Simple helper data class that's a little nicer to use than a 2-tuple.
 class HostDeviceMem(object):
     def __init__(self, host_mem, device_mem):
@@ -131,7 +126,6 @@ def verify_tf_with_trt_result(in_data, in_name, out_name, op_name):
     out_node = [name_without_num(name) for name in out_name]
     in_data = convert_to_list(in_data)
     in_name = convert_to_list(in_name)
-    in_node = [name_without_num(name) for name in in_name]
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         tf_result = run_tf_graph(sess, in_data, in_name, out_name)
@@ -142,12 +136,12 @@ def verify_tf_with_trt_result(in_data, in_name, out_name, op_name):
             ofile.write(frozen_graph.SerializeToString())
     os.system(
         "python3 -m tf2onnx.convert --input model/test_op_{}.pb --inputs {} --outputs {} --output {} --opset 11".format(
-            op_name, str(",").join(in_name), str(",").join(out_name), input_model_file
+            op_name, str(",").join(in_name), str(",").join(out_name), INPUT_MODEL_FILE
         )
     )
     ops_name = [op_name]
     trt_plugin_name = onnx2plugin(
-        input_model_file, output_model_file, node_names=ops_name
+        INPUT_MODEL_FILE, OUTPUT_MODEL_FILE, node_names=ops_name
     )
     for plugin_name in trt_plugin_name:
         ctypes.cdll.LoadLibrary("./trt_plugin/lib/{}.so".format(plugin_name))
@@ -159,14 +153,14 @@ def verify_tf_with_trt_result(in_data, in_name, out_name, op_name):
         builder_config = builder.create_builder_config()
         builder_config.max_workspace_size = 1 << 30
 
-        with open(output_model_file, "rb") as model:
+        with open(OUTPUT_MODEL_FILE, "rb") as model:
             # parse onnx model
             parser.parse(model.read())
             for i in range(parser.num_errors):
                 print(parser.get_error(i))
 
         engine = builder.build_engine(network, builder_config)
-        if engine == None:
+        if engine is None:
             print("[ERROR] engine is None")
             exit(-1)
 
@@ -253,7 +247,7 @@ def verify_with_ort_with_trt(
 ):
     if opset is not None:
         model.opset_import[0].version = opset
-    onnx.save(model, input_model_file)
+    onnx.save(model, INPUT_MODEL_FILE)
     if np_result is None:
         ort_result = get_onnxruntime_output(model, inputs)
     else:
@@ -261,7 +255,7 @@ def verify_with_ort_with_trt(
     in_data = convert_to_list(inputs)
     ops_name = [op_name]
     trt_plugin_name = onnx2plugin(
-        input_model_file, output_model_file, node_names=ops_name
+        INPUT_MODEL_FILE, OUTPUT_MODEL_FILE, node_names=ops_name
     )
     for plugin_name in trt_plugin_name:
         ctypes.cdll.LoadLibrary("./trt_plugin/lib/{}.so".format(plugin_name))
@@ -270,18 +264,18 @@ def verify_with_ort_with_trt(
     with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
         1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
     ) as network, trt.OnnxParser(network, TRT_LOGGER) as parser:
-        builder.max_batch_size = batch_size
+        builder.max_batch_size = BATCH_SIZE
         builder_config = builder.create_builder_config()
         builder_config.max_workspace_size = 1 << 30
 
-        with open(output_model_file, "rb") as model:
+        with open(OUTPUT_MODEL_FILE, "rb") as model:
             # parse onnx model
             parser.parse(model.read())
             for i in range(parser.num_errors):
                 print(parser.get_error(i))
 
         engine = builder.build_engine(network, builder_config)
-        if engine == None:
+        if engine is None:
             print("[ERROR] engine is None")
             exit(-1)
         inputs, outputs, bindings, stream = allocate_buffers(engine)
@@ -295,7 +289,7 @@ def verify_with_ort_with_trt(
                 inputs=inputs,
                 outputs=outputs,
                 stream=stream,
-                batch_size=batch_size,
+                batch_size=BATCH_SIZE,
             )
     cuda.Context.pop()
     ret = True
@@ -350,7 +344,7 @@ def op_expect(node, inputs, outputs, op_type, op_name, np_result=None):
     model = make_onnx_model(
         node, inputs=inputs, outputs=outputs, name="test_{}".format(op_type)
     )
-    ret = verify_with_ort_with_trt(model, inputs, op_name, np_result=np_result)
+    verify_with_ort_with_trt(model, inputs, op_name, np_result=np_result)
 
 
 # ====================================================================================
@@ -1677,7 +1671,7 @@ def verify_rnn(
         input_values.append(b_np)
 
     if use_initial_state:
-        assert use_bias == True, "Initial states must have bias specified."
+        assert use_bias is True, "Initial states must have bias specified."
         sequence_np = np.repeat(seq_length, batch_size).astype("int32")
         input_names.append("sequence_lens")
         input_tensors.append(
@@ -1712,7 +1706,7 @@ def verify_rnn(
 
     if use_peep and rnn_type == "LSTM":
         assert (
-            use_initial_state == True
+            use_initial_state is True
         ), "Peepholes require initial state to be specified."
         p_np = np.random.uniform(size=(1, 3 * hidden_size)).astype("float32")
         input_names.append("P")
@@ -2810,7 +2804,7 @@ def test_reduceSum():
         )  # [batchsize, 10]
         input_data = np.random.rand(batch_size, 256).astype(np.float32)
         x = tf.math.reduce_sum(input_ph, axis=1, name=op_name)
-        output = tf.identity(x, name="output")
+        _ = tf.identity(x, name="output")
         verify_tf_with_trt_result(
             [input_data], ["input:0"], ["output:0"], op_name=op_name
         )
@@ -2864,15 +2858,6 @@ def test_maxunpool():
         if strides is not None:
             strides_attr = helper.make_attribute("strides", strides)
             node.attribute.append(strides_attr)
-        initializers = [
-            helper.make_tensor(
-                name="xI",
-                data_type=TensorProto.INT64,
-                dims=indices.shape,
-                vals=indices.flatten(),
-                raw=False,
-            )
-        ]
 
         graph = helper.make_graph(
             [node],
@@ -2881,11 +2866,9 @@ def test_maxunpool():
             outputs=[
                 helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)
             ],
-            # initializer=initializers
         )
 
         model = helper.make_model(graph, producer_name="size_test")
-        # ret = verify_with_ort_with_trt(model, [input_np], op_name)
         verify_with_ort_with_trt(model, input_values, op_name=op_name, opset=11)
 
     # Basic test
@@ -3212,7 +3195,7 @@ def test_instance_norm():
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None, op_name=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
 
-    if alpha == None and beta == None and bias == None:
+    if alpha is None and beta is None and bias is None:
         alpha = 0.0001
         beta = 0.75
         bias = 1.0
@@ -3255,31 +3238,6 @@ def test_lrn():
 
 
 def test_lstm():
-    # No bias.
-    # verify_rnn(
-    #     seq_length=2, batch_size=1, input_size=16, hidden_size=32, use_bias=False, rnn_type="LSTM", op_name='test_lstm'
-    # )
-    # # large batch.
-    # verify_rnn(
-    #     seq_length=4, batch_size=8, input_size=16, hidden_size=32, use_bias=True, rnn_type="LSTM"
-    # )
-    # # Non power of two.
-    # verify_rnn(
-    #     seq_length=3, batch_size=3, input_size=16, hidden_size=40, use_bias=True, rnn_type="LSTM"
-    # )
-    # # Long sequence.
-    # verify_rnn(
-    #     seq_length=8, batch_size=1, input_size=16, hidden_size=32, use_bias=True, rnn_type="LSTM"
-    # )
-    # # Large hidden.
-    # verify_rnn(
-    #     seq_length=2, batch_size=1, input_size=16, hidden_size=128, use_bias=True, rnn_type="LSTM"
-    # )
-    # # Large input.
-    # verify_rnn(
-    #     seq_length=2, batch_size=1, input_size=64, hidden_size=32, use_bias=True, rnn_type="LSTM"
-    # )
-
     # # Different activation testing.
     # # Default value hardsigmoid.
     verify_rnn(
@@ -3412,7 +3370,7 @@ def verify_reduce_func(func, data, axis, keepdims, op_name=None):
 
     model = helper.make_model(graph, producer_name="reduce_test")
 
-    ret = verify_with_ort_with_trt(model, [data], opset=11, op_name=op_name)
+    verify_with_ort_with_trt(model, [data], opset=11, op_name=op_name)
 
 
 def test_all_reduce_funcs():
@@ -3644,7 +3602,6 @@ def test_split():
         False,
         op_name="split_2",
     )
-    # verify_split([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0, op_name='split_3')
     # 2D
     verify_split(
         [[1.0, 2.0, 3.0, 4.0], [7.0, 8.0, 9.0, 10.0]],
@@ -3740,15 +3697,7 @@ def verify_if(cond_array, op_name):
         cond = np.array([1]).astype("bool")
     else:
         cond = np.array(1).astype("bool")
-    correct_out = x if cond else y
     verify_with_ort_with_trt(if_model, [cond], op_name=op_name)
-
-    # TODO(jwfromm): Onnxruntime 1.0.0 is buggy with If statements. Replace this with
-    # verify_with_ort once we update versions.
-    # for target, dev in tvm.testing.enabled_targets():
-    #     tvm_out = get_tvm_output_with_vm(if_model, [cond], target, dev, freeze_params=True)
-    #     for i in range(len(tvm_out)):
-    #         tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 
 
 def test_if():
@@ -3849,7 +3798,7 @@ def _test_logical(method, op_name):
             x = tf.math.is_inf(input_ph, name=op_name)
         elif method == "is_nan":
             x = tf.math.is_nan(input_ph, name=op_name)
-        output = tf.identity(x, name="output")
+        _ = tf.identity(x, name="output")
         verify_tf_with_trt_result([input_data], ["input:0"], ["output:0"], op_name)
 
 
@@ -3873,7 +3822,7 @@ def test_scatternd():
         )  # [batchsize, 10]
         input_data = np.random.rand(batch_size, 10).astype(np.float32)
         x = tf.layers.dense(input_ph, 1)
-        ### duplicated indices case (undefined)
+        # duplicated indices case (undefined)
         # test ScatterND (32, 128, 128, 256) (32, 600, 3) (32, 600, 256)
         data = tf.tile(
             tf.reshape(tf.layers.dense(x, 128 * 128), [-1, 128, 128, 1]), [1, 1, 1, 256]
@@ -3889,7 +3838,7 @@ def test_scatternd():
         # updates = tf.ones([32, 600, 256])
         x = tf.tensor_scatter_nd_update(data, indices, updates, name=op_name)
         # x = tf.scatter_nd(indices, updates, data.shape)
-        output = tf.identity(x, name="output")
+        _ = tf.identity(x, name="output")
         verify_tf_with_trt_result([input_data], ["input:0"], ["output:0"], op_name)
 
 

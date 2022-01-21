@@ -26,14 +26,14 @@ class OnnxModified(object):
         self._onnx_original_tensor_type = self.compute_tensor_type(
             input_model_path, tuning_nodes
         )
-        self.handleTrtNotSupportType(
+        self.handle_trt_not_support_type(
             input_model_path,
             output_model_path,
             onnx_layer_name_mapping_trt_plugin_name,
             self._onnx_original_tensor_type,
         )
 
-    def handleTrtNotSupportType(
+    def handle_trt_not_support_type(
         self,
         input_model_path,
         output_model_path,

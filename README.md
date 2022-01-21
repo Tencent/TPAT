@@ -48,7 +48,7 @@
 
     ```
 
-5. 软链 [model](/python/gpu/model), [trt_plugin](/python/gpu/trt_plugin) 文件夹到工作目录下: 例如 [example](/examples/gpu/example_tensorflow.py) 和 [unittest](/tests/python/unittests/gpu/test_tpat.py)
+5. 软链 [model](/python/model), [trt_plugin](/python/trt_plugin) 文件夹到工作目录下: 例如 [example](/examples/example_tensorflow.py) 和 [unittest](/tests/test_tpat.py)
 
 
 ## 用法
@@ -62,9 +62,9 @@
 #### 使用
 1. 命令行调用
     ```
-   python3 Onnx2Plugin.py -i input.onnx -o output.onnx -n op_name1 op_name2
-   python3 Onnx2Plugin.py -i input.onnx -o output.onnx -t op_type1 op_type2
-   python3 Onnx2Plugin.py -i input.onnx -o output.onnx -p '{"op_name1": "plugin_name1", "op_name2": "plugin_name2"}'
+   python3 onnx_to_plugin.py -i input.onnx -o output.onnx -n op_name1 op_name2
+   python3 onnx_to_plugin.py -i input.onnx -o output.onnx -t op_type1 op_type2
+   python3 onnx_to_plugin.py -i input.onnx -o output.onnx -p '{"op_name1": "plugin_name1", "op_name2": "plugin_name2"}'
     ```
 2. 函数调用
     ```
@@ -89,5 +89,5 @@
 
 #### Example && UnitTest
 
-- Example : [example_tensorflow.py](/examples/gpu/example_tensorflow.py)
-- UnitTest : [test_tapt.py](/tests/python/unittests/gpu/test_tpat.py)
+- Example : [example_tensorflow.py](/examples/example_tensorflow.py)
+- UnitTest : [test_tapt.py](/tests/test_tpat.py)

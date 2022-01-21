@@ -7,7 +7,7 @@ import tvm
 import tvm.relay as relay
 from tvm.driver import tvmc
 from tvm.contrib import graph_executor
-from tvm import te, auto_scheduler
+from tvm import auto_scheduler
 import onnx
 import onnx_graphsurgeon as gs
 import onnxruntime as ort
@@ -175,7 +175,6 @@ class CudaKernel(object):
             computed_tensor_shapes.append(
                 dummy_output[len(tuning_node_inputs) + i].shape
             )
-            # print(f"node output {tuning_node_outputs[i].name} with shape {dummy_output[len(tuning_node_inputs) + i].shape}")
         return computed_tensor_shapes
 
     def extract_target_onnx_node(self, model):
@@ -207,7 +206,8 @@ class CudaKernel(object):
         ]
         computed_tensor_shapes = self.compute_tensor_shape(
             self._model_path
-        )  ### enhanced shape calculation
+        )  
+        ### enhanced shape calculation
         for i in range(len(tuning_node_inputs)):
             tuning_node_inputs[i].shape = computed_tensor_shapes[i]
         for i in range(len(tuning_node_outputs)):

@@ -222,7 +222,6 @@ class PluginTemplateParams(object):
         dummy_model = "./model/dummy_model.onnx"
         onnx.save(submodel, dummy_model)
         session = ort.InferenceSession(dummy_model)
-        inname = [input.name for input in session.get_inputs()]
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         for gi in graph.inputs:
@@ -241,7 +240,6 @@ class PluginTemplateParams(object):
         graph = model.graph
         nodes = graph.node
         onnx_inputs = graph.input
-        onnx_initializer = graph.initializer
         init_order = {}
         for node in nodes:
             op_inputs = node.input
@@ -260,7 +258,6 @@ class PluginTemplateParams(object):
             eid = self._kernel_generate.graph_module.get_output_eid(i)
             idx = int(self._storage_id[eid])
             self._output_type.append(python_to_trt_type_mapping[self._data_type[eid]])
-            # self._input_dict[str(eid)] = "(" + tvm_to_c_type_mapping[self._data_type[eid]] + "*)outputs[" + str(i) + "]"
             self._input_dict[str(eid)] = "outputs[" + str(i) + "]"
             input_slot_dict[idx] = self._input_dict[str(eid)]
         duplicate_allocate = {}
@@ -278,16 +275,13 @@ class PluginTemplateParams(object):
                 self._input_dict[str(i)] = input_slot_dict[idx]
                 continue
             if i < self._nums_input:
-                # self._input_dict[str(i)] = "(" + tvm_to_c_type_mapping[self._data_type[i]] + "*)inputs[" + str(self._onnx_input_order[i]) + "]"
                 self._input_dict[str(i)] = (
                     "inputs[" + str(self._onnx_input_order[i]) + "]"
                 )
             elif i < len(self._allocate_size) - self._nums_output:
                 if i == self._nums_input:
-                    # self._input_dict[str(i)] = "(" + tvm_to_c_type_mapping[self._data_type[i]] + "*)workspace"
                     self._input_dict[str(i)] = "workspace"
                 else:
-                    # self._input_dict[str(i)] = "(" + tvm_to_c_type_mapping[self._data_type[i]] + "*)(workspace + " + str(workspace) + ")"
                     self._input_dict[str(i)] = "(workspace + " + str(workspace) + ")"
                 workspace += int(duplicate_allocate[idx])
                 self._workspace_size = workspace

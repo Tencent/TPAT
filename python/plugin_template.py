@@ -23,8 +23,8 @@ class PluginTemplate(object):
         self._template_source_file = TEMPLATE_SOURCE_FILE
         self._plugin_name = template_params.plugin_name
         self._plugin_config = template_params.plugin_config
-        templateLoader = FileSystemLoader(searchpath="./")
-        self._templateEnv = Environment(loader=templateLoader)
+        template_loader = FileSystemLoader(searchpath="./")
+        self._template_env = Environment(loader=template_loader)
         self._plugin_output_number = template_params.output_num
         self._plugin_output_type = template_params.output_type
         self._plugin_workspace_size = template_params.workspace_size
@@ -38,17 +38,17 @@ class PluginTemplate(object):
         self._plugin_constant_init = self.parse_plugin_workspace_init(workspace_init)
         self._plugin_kernels_body = template_params.cuda_source_code
 
-    class tensor_dims:
+    class tensorDims:
         def __init__(self, nbDims, shape):
             self.nbDims = nbDims
             self.shape = tuple(shape)
 
-    class tensor_format:
+    class tensorFormat:
         def __init__(self, format, type):
             self.format = format
             self.type = type
 
-    class kernel:
+    class Kernel:
         def __init__(
             self,
             name,
@@ -65,7 +65,7 @@ class PluginTemplate(object):
             self.kernel_params = kernel_params
             self.code = code
 
-    class constant:
+    class Constant:
         def __init__(self, pos, value, type, index, length):
             self.pos = pos
             self.value = value
@@ -76,19 +76,15 @@ class PluginTemplate(object):
     def parse_plugin_output_shape(self, onnx_output_shape):
         plugin_output_shape = []
         for s in onnx_output_shape:
-            ### ignore batch dimension for IPluginV2IOExt interface
-            # nbDims = len(s) - 1
-            # shape = s[1:]
-            ### preserve batch dimension for IPluginV2DynamicExt interface
             nbDims = len(s)
             shape = s
-            plugin_output_shape.append(self.tensor_dims(nbDims, shape))
+            plugin_output_shape.append(self.tensorDims(nbDims, shape))
         return plugin_output_shape
 
     def parse_plugin_tensor_format(self, onnx_tensor_type):
         plugin_tensor_format = []
         for dtype in onnx_tensor_type:
-            plugin_tensor_format.append(self.tensor_format("LINEAR", dtype))
+            plugin_tensor_format.append(self.tensorFormat("LINEAR", dtype))
         return plugin_tensor_format
 
     def parse_plugin_kernels_params(self, kernel_order):
@@ -102,7 +98,7 @@ class PluginTemplate(object):
                 kernel_call[func_name] += 1
                 key_name = func_name + "_" + str(kernel_call[func_name])
             plugin_kernels_params.append(
-                self.kernel(
+                self.Kernel(
                     func_name,
                     self._plugin_config[key_name]["grid_dim"],
                     self._plugin_config[key_name]["block_dim"],
@@ -119,7 +115,7 @@ class PluginTemplate(object):
                 value_str = value_str + str(ele) + " ,"
             value_str = value_str.strip(",")
             plugin_constant_init.append(
-                self.constant(
+                self.Constant(
                     init_constant[0],
                     # init_constant[1][0],
                     value_str,
@@ -131,8 +127,8 @@ class PluginTemplate(object):
         return plugin_constant_init
 
     def genearte_header_file(self):
-        template = self._templateEnv.get_template(self._template_header_file)
-        outputText = template.render(
+        template = self._template_env.get_template(self._template_header_file)
+        output_text = template.render(
             plugin_name=self._plugin_name,
             plugin_output_number=self._plugin_output_number,
             plugin_output_shape=self._plugin_output_shape,
@@ -141,18 +137,18 @@ class PluginTemplate(object):
             plugin_tensor_format=self._plugin_tensor_format,
         )
         with open("./trt_plugin/src/{}.h".format(self._plugin_name), "w") as f:
-            f.write(outputText)
+            f.write(output_text)
 
     def genearte_source_file(self):
-        template = self._templateEnv.get_template(self._template_source_file)
-        outputText = template.render(
+        template = self._template_env.get_template(self._template_source_file)
+        output_text = template.render(
             plugin_name=self._plugin_name,
             plugin_kernels_params=self._plugin_kernels_params,
             plugin_kernels_body=self._plugin_kernels_body,
             plugin_constant_init=self._plugin_constant_init,
         )
         with open("./trt_plugin/src/{}.cu".format(self._plugin_name), "w") as f:
-            f.write(outputText)
+            f.write(output_text)
 
     def build_plugin(self):
         os.chdir("./trt_plugin")
