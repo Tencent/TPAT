@@ -3,6 +3,7 @@
 # email : qianqiu@tencent.com
 # time : 2022.1.7
 ##############################
+import os
 import tvm
 import tvm.relay as relay
 from tvm.driver import tvmc
@@ -12,7 +13,6 @@ import onnx
 import onnx_graphsurgeon as gs
 import onnxruntime as ort
 from onnx import shape_inference
-
 import numpy as np
 
 
@@ -31,7 +31,7 @@ class CudaKernel(object):
         model_path,
         tuning_node,
         plugin_name,
-        one_node_model="./model/submodel.onnx",
+        one_node_model="submodel.onnx",
     ):
         self._model_path = model_path
         self._one_node_model = one_node_model
@@ -155,9 +155,8 @@ class CudaKernel(object):
         graph.cleanup()
 
         half_model = gs.export_onnx(graph)
-        half_model_path = "./model/half_model.onnx"
+        half_model_path = "half_model.onnx"
         onnx.save(half_model, half_model_path)
-
         session = ort.InferenceSession(half_model_path)
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
@@ -175,6 +174,7 @@ class CudaKernel(object):
             computed_tensor_shapes.append(
                 dummy_output[len(tuning_node_inputs) + i].shape
             )
+        os.remove(half_model_path)
         return computed_tensor_shapes
 
     def extract_target_onnx_node(self, model):

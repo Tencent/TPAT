@@ -6,7 +6,7 @@
 import onnx
 import onnx_graphsurgeon as gs
 from onnx import shape_inference
-from .type_mapping import onnx_type_mapping
+from type_mapping import onnx_type_mapping
 
 
 class OnnxModified(object):

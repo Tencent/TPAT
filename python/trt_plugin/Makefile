@@ -14,8 +14,8 @@
 # limitations under the License.
 #
 
-#CUDA_PATH   = /usr/local/cuda-11.1
-CUDA_PATH   = /usr/local/cuda-10.2/
+CUDA_PATH   = /usr/local/cuda/
+TRT_LIB_PATH = /root/workspace/download/TensorRT-7.2.2.3/lib
 
 CUDA_INC_PATH = $(CUDA_PATH)/include
 CUDA_COM_PATH = $(CUDA_PATH)/samples/common/inc
@@ -31,10 +31,7 @@ CCFLAGS = -w -std=c++11
 INCLUDES := -I. -I$(CUDA_COM_PATH) -I$(CUDA_INC_PATH) -I$(CUDNN_INC_PATH) -I$(TRT_INC_PATH) -I/usr/include
 
 CUDA_LIB_PATH  = $(CUDA_PATH)/lib64
-#TRT_LIB_PATH   = /usr/lib/x86_64-linux-gnu
-#CUDNN_LIB_PATH = /usr/lib/x86_64-linux-gnu
-TRT_LIB_PATH = /root/workspace/download/TensorRT-7.2.2.3/lib
-CUDNN_LIB_PATH = /root/workspace/download/cuda/lib64
+CUDNN_LIB_PATH = $(CUDA_PATH)/lib64
 
 
 LDFLAGS := -L$(CUDA_LIB_PATH) -L$(CUDNN_LIB_PATH) -L$(TRT_LIB_PATH) 
@@ -44,11 +41,6 @@ LDFLAGS += -Wl,-rpath=$(CUDA_LIB_PATH)
 LDFLAGS += -Wl,-rpath=$(CUDNN_LIB_PATH)
 LDFLAGS += -Wl,-rpath=$(TRT_LIB_PATH)
 
-
-
-#SO = ScatterND.so GatherND.so OnehotPlugin.so InsNormPlugin.so LayerNormPlugin.so OneHot.so
-# SO = TvmResize.so
-# SO = ScatterND.so
 SO = $(plugin_name).so
 OBJ = $(shell find . -name '*.o')
 DEP = $(OBJ:.o=.d)
@@ -59,14 +51,6 @@ LIBDIR := ./lib
 
 all: $(SO)
 
-# ScatterND.so: ScatterND.o
-# GatherND.so: GatherND.o
-# OnehotPlugin.so: OnehotPlugin.o
-# onehot.so : onehot.o
-# OneHot.so : OneHot.o
-# InsNormPlugin.so: InsNormPlugin.o
-# LayerNormPlugin.so: LayerNormPlugin.o
-# TvmResize.so : TvmResize.o
 $(plugin_name).so : $(plugin_name).o
 
 -include $(DEP)

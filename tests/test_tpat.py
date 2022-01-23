@@ -28,6 +28,7 @@ import torch
 import pytest
 sys.path.append("..")
 from python import *
+os.chdir("../python/")
 
 i_gpu = 0
 os.environ["CUDA_VISIBLE_DEVICES"] = str(i_gpu)

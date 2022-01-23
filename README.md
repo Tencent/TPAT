@@ -30,6 +30,9 @@
     # 需要支持C++14的gcc编译器
     cd build && cmake .. 
     make -j
+    # TVM加入环境变量
+    export TVM_HOME=/path/to/tvm
+	export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
     ```
 
 3. TensorRT
@@ -48,18 +51,16 @@
 
     ```
 
-5. 软链 [model](/python/model), [trt_plugin](/python/trt_plugin) 文件夹到工作目录下: 例如 [example](/examples/example_tensorflow.py) 和 [unittest](/tests/test_tpat.py)
-
 
 ## 用法
-#### 输入
+### 输入
 - input_model_path [-i][*required*] : 输入的onnx model, 包含需要生成plugin的op, 支持多个同类型op 
 - output_model_path [-o][*required*] : 输出onnx model, 对应的op type修改为生成的plugin名称, 配合plugin通过onnx-parser可以直接生成trt-engine.
 - node_names [-n] : 指定需要生成plugin的op 名字, 支持多个
 - node_types [-t] : 指定需要生成plugin的op 类型, 支持多个
 - plugin_name_dict [-p] : 字典, key为 op名字, value为生成对应op 的plugin的名字, 支持多个
 
-#### 使用
+### 使用
 1. 命令行调用
     ```
    python3 onnx_to_plugin.py -i input.onnx -o output.onnx -n op_name1 op_name2
@@ -78,16 +79,16 @@
     ```
     ***node_names, node_types, plugin_name_dict 至少指定一项***
 
-#### 输出
+### 输出
 1. 通过 plugin_name_dict 指定plugin name
-- trt_plugin/src 下生成有 {plugin_name}.cu 和 {plugin_name}.h 的plugin源码
-- trt_plugin/src 下生成有 {plugin_name}.so 的动态链接库
+- python/trt_plugin/src 下生成有 {plugin_name}.cu 和 {plugin_name}.h 的plugin源码
+- python/trt_plugin/src 下生成有 {plugin_name}.so 的动态链接库
 
 2. 只输入了node names和node types
-- trt_plugin/src 下生成有 tpat_{node_name}.cu 和 tpat_{node_name}.h的plugin源码
-- trt_plugin/src 下生成有 tpat_{node_name}.so 的动态链接库
+- python/trt_plugin/src 下生成有 tpat_{node_name}.cu 和 tpat_{node_name}.h的plugin源码
+- python/trt_plugin/src 下生成有 tpat_{node_name}.so 的动态链接库
 
-#### Example && UnitTest
+### Example && UnitTest
 
 - Example : [example_tensorflow.py](/examples/example_tensorflow.py)
 - UnitTest : [test_tapt.py](/tests/test_tpat.py)

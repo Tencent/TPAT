@@ -3,12 +3,13 @@
 # email : qianqiu@tencent.com
 # time : 2022.1.7
 ##############################
+import os
 import onnx
 from onnx import shape_inference
 import onnx_graphsurgeon as gs
 import onnxruntime as ort
 import numpy as np
-from .type_mapping import (
+from type_mapping import (
     tvm_to_c_type_mapping,
     python_to_trt_type_mapping,
     plugin_type_size,
@@ -25,7 +26,7 @@ class PluginTemplateParams(object):
         cuda_kernel,
         onnx_path,
         tuning_name,
-        one_node_model="./model/submodel.onnx",
+        one_node_model="submodel.onnx",
     ):
         self._kernel_generate = cuda_kernel
         self._onnx_path = onnx_path
@@ -58,6 +59,7 @@ class PluginTemplateParams(object):
         self.align_onnx_and_tvm_input(self._one_node_model)
         self.match_address_for_eid()
         self.cuda_kernel_config()
+        os.remove(self._one_node_model)
 
     # Parse Constant.
     def parse_constant_params(self, constant_params):
@@ -219,7 +221,7 @@ class PluginTemplateParams(object):
         ]
         graph.cleanup()
         submodel = gs.export_onnx(graph)
-        dummy_model = "./model/dummy_model.onnx"
+        dummy_model = "dummy_model.onnx"
         onnx.save(submodel, dummy_model)
         session = ort.InferenceSession(dummy_model)
         outname = [output.name for output in session.get_outputs()]
@@ -229,8 +231,7 @@ class PluginTemplateParams(object):
         dummy_output = session.run(outname, dummy_input)
         for i in range(len(dummy_output)):
             self._onnx_output_shape.append(dummy_output[i].shape)
-        # import os
-        # os.system(f'rm {dummy_model}')
+        os.remove(dummy_model)
 
     def align_onnx_and_tvm_input(self, onnx_path):
         """

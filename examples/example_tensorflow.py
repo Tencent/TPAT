@@ -24,6 +24,7 @@ import tensorrt as trt
 import tensorflow as tf
 sys.path.append("..")
 from python import *
+os.chdir("../python")
 # import torch
 # TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 IGPU = 0
@@ -141,6 +142,7 @@ def main():
             input_model_file,
         )
     )
+    os.remove("model/test_op_{}.pb".format(op_name))
 
     node_names = [op_name]
     trt_plugin_names = onnx2plugin(

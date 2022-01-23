@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.append(os.path.normpath(os.path.dirname(__file__)))
 from .onnx_to_plugin import onnx2plugin
 from .cuda_kernel import CudaKernel
 from .plugin_template import PluginTemplate

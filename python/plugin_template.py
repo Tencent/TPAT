@@ -4,7 +4,17 @@
 # time : 2022.1.7
 ##############################
 import os
+import contextlib
 from jinja2 import FileSystemLoader, Environment
+
+@contextlib.contextmanager
+def pushd(new_dir):
+    pre_dir = os.getcwd()
+    os.chdir(new_dir)
+    try:
+        yield
+    finally:
+        os.chdir(pre_dir)
 
 
 class PluginTemplate(object):
@@ -23,7 +33,9 @@ class PluginTemplate(object):
         self._template_source_file = TEMPLATE_SOURCE_FILE
         self._plugin_name = template_params.plugin_name
         self._plugin_config = template_params.plugin_config
-        template_loader = FileSystemLoader(searchpath="./")
+        print(os.path.normpath(os.path.dirname(__file__)))
+        with pushd(os.path.normpath(os.path.dirname(__file__))):
+            template_loader = FileSystemLoader(searchpath="./")
         self._template_env = Environment(loader=template_loader)
         self._plugin_output_number = template_params.output_num
         self._plugin_output_type = template_params.output_type
@@ -163,6 +175,8 @@ class PluginTemplate(object):
             os.remove(plugin_header_path)
         if os.path.isfile(plugin_source_path):
             os.remove(plugin_source_path)
-        self.genearte_header_file()
-        self.genearte_source_file()
-        self.build_plugin()
+        with pushd(os.path.normpath(os.path.dirname(__file__))): 
+            self.genearte_header_file()
+            self.genearte_source_file()
+            self.build_plugin()
+
