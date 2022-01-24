@@ -1,0 +1,4 @@
+source:
+.*/examples/.*
+third_party_source:
+.*/3rdparty/.*
