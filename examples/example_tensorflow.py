@@ -25,8 +25,6 @@ import tensorflow as tf
 sys.path.append("..")
 from python import *
 os.chdir("../python")
-# import torch
-# TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 IGPU = 0
 os.environ["CUDA_VISIBLE_DEVICES"] = str(IGPU)
 TRT_LOGGER = trt.Logger(trt.Logger.VERBOSE)

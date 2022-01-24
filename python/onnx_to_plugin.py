@@ -13,7 +13,7 @@ from plugin_template import PluginTemplate
 from onnx_modified import OnnxModified
 
 
-def generatePluginLibrary(input_model_path, nodes, plugin_name_dict=None):
+def generate_plugin_library(input_model_path, nodes, plugin_name_dict=None):
     onnx_name_mapping_trt_plugin = {}
     trt_plugin_mapping_onnx_node = {}
 
@@ -25,7 +25,8 @@ def generatePluginLibrary(input_model_path, nodes, plugin_name_dict=None):
             plugin_name = "tpat_" + str(node.name)
         assert (
             node.op != plugin_name
-        ), "Please make sure your plugin name is different from op type in TensorRT, otherwise, the native kernel of tensorrt will be preferred for execution."
+        ), "Please make sure your plugin name is different from op type in TensorRT, \
+            otherwise, the native kernel of tensorrt will be preferred for execution."
         cuda_kernel = CudaKernel(input_model_path, node, plugin_name)
         reusable_plugin = cuda_kernel.check_existing_plugins(
             trt_plugin_mapping_onnx_node
@@ -68,11 +69,8 @@ def onnx2plugin(
     assert (
         node_names is not None or node_types is not None or plugin_name_dict is not None
     ), "Please input at least one of node name、node type and dict of plugin"
-    try:
-        input_onnx_model = onnx.load(input_model_path)
-    except Exception as e:
-        print("load onnx model : {} failed, Detail : {}".format(input_model_path, e))
-        exit(1)
+    
+    input_onnx_model = onnx.load(input_model_path)
     input_model = gs.import_onnx(input_onnx_model)
     nodes = []
     if node_names is not None:
@@ -89,7 +87,7 @@ def onnx2plugin(
     assert (
         len(nodes) != 0
     ), "Not get tuning node in onnx model, please check op name or onnx model"
-    onnx_name_mapping_trt_plugin = generatePluginLibrary(
+    onnx_name_mapping_trt_plugin = generate_plugin_library(
         input_model_path, nodes, plugin_name_dict
     )
     print("Onnx_name_mapping_trt_plugin: {}".format(onnx_name_mapping_trt_plugin))

@@ -24,14 +24,12 @@ from onnx import TensorProto, helper, mapping, numpy_helper
 import pycuda.driver as cuda
 import tensorrt as trt
 import tensorflow as tf
-import torch
-import pytest
 sys.path.append("..")
 from python import *
 os.chdir("../python/")
 
-i_gpu = 0
-os.environ["CUDA_VISIBLE_DEVICES"] = str(i_gpu)
+I_GPU = 0
+os.environ["CUDA_VISIBLE_DEVICES"] = str(I_GPU)
 tf.set_random_seed(1234)
 np.random.seed(0)
 ITERATIONS = 10
@@ -610,7 +608,7 @@ def test_averagepool():
     op_expect(node, inputs=[x], outputs=[y], op_type=op_type, op_name=op_name)
 
 
-def test_batchNormalization():
+def test_batchnormalization():
     op_name = "batchnormalization_0"
     op_type = "BatchNormalization"
     # input size: (2, 3, 4, 5)
@@ -858,7 +856,8 @@ def test_conv():
             ]
         ]
     ).astype(np.float32)
-    W = np.array(
+    #NOCC:invalid-name(其他:onnx example)
+    W = np.array( 
         [
             [
                 [
@@ -946,7 +945,8 @@ def test_conv():
             ]
         ]
     ).astype(np.float32)
-    W = np.array(
+    #NOCC:invalid-name(其他:onnx example)
+    W = np.array( 
         [
             [
                 [
@@ -990,7 +990,8 @@ def test_conv():
             ]
         ]
     ).astype(np.float32)
-    W = np.array(
+    #NOCC:invalid-name(其他:onnx example)
+    W = np.array( 
         [
             [
                 [
@@ -1101,7 +1102,8 @@ def test_convtranspose():
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]]  # (1, 1, 3, 3)
     ).astype(np.float32)
 
-    W = np.array(
+    #NOCC:invalid-name(其他:onnx example)
+    W = np.array( 
         [
             [
                 [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],  # (1, 2, 3, 3)
@@ -1139,6 +1141,7 @@ def test_convtranspose():
 
     x = np.array([[[0.0, 1.0, 2.0]]]).astype(np.float32)  # (1, 1, 3)
 
+    #NOCC:invalid-name(其他:onnx example)
     W = np.array([[[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]]).astype(np.float32)  # (1, 2, 3)
 
     node = onnx.helper.make_node("ConvTranspose", ["X", "W"], ["Y"], name=op_name)
@@ -1177,7 +1180,8 @@ def test_convtranspose():
         ]
     ).astype(np.float32)
 
-    W = np.array(
+    #NOCC:invalid-name(其他:onnx example)
+    W = np.array( 
         [
             [
                 [
@@ -1299,7 +1303,8 @@ def test_convtranspose():
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]]  # (1, 1, 3, 3)
     ).astype(np.float32)
 
-    W = np.array(
+    #NOCC:invalid-name(其他:onnx example)
+    W = np.array( 
         [
             [
                 [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]],  # (1, 2, 3, 3)
@@ -1375,7 +1380,7 @@ def test_cosh():
     op_expect(node, inputs=[x], outputs=[y], op_type=op_type, op_name=op_name)
 
 
-def test_depthToSpace():
+def test_depthtospace():
     op_name, op_type = "test_depthtospace_crd_mode_example", "DepthToSpace"
     node = onnx.helper.make_node(
         "DepthToSpace",
@@ -1499,15 +1504,17 @@ def test_div():
 
 def test_einsum():
     op_name, op_type = "test_einsum_batch_diagonal", "Einsum"
-    Eqn = "...ii ->...i"
+    eqn = "...ii ->...i"
     node = onnx.helper.make_node(
-        "Einsum", inputs=["x"], outputs=["y"], equation=Eqn, name=op_name
+        "Einsum", inputs=["x"], outputs=["y"], equation=eqn, name=op_name
     )
 
-    X = np.random.randn(3, 5, 5).astype(np.float32)
+    #NOCC:invalid-name(其他:onnx example)
+    X = np.random.randn(3, 5, 5).astype(np.float32) 
     from onnx.backend.test.case.node.einsum import einsum_reference_implementation
 
-    Z = einsum_reference_implementation(Eqn, (X,))
+    #NOCC:invalid-name(其他:onnx example)
+    Z = einsum_reference_implementation(eqn, (X,)) 
     op_expect(node, inputs=[X], outputs=[Z], op_type=op_type, op_name=op_name)
 
 
@@ -1716,8 +1723,10 @@ def verify_rnn(
         )
         input_values.append(p_np)
 
-    Y_shape = [seq_length, 1, batch_size, hidden_size]
-    Y_h_shape = [1, batch_size, hidden_size]
+    #NOCC:invalid-name(其他:onnx example)
+    Y_shape = [seq_length, 1, batch_size, hidden_size] 
+    #NOCC:invalid-name(其他:onnx example)
+    Y_h_shape = [1, batch_size, hidden_size] 
     outputs = ["Y", "Y_h"]
     graph_outputs = [
         helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape)),
@@ -1726,7 +1735,8 @@ def verify_rnn(
     output_shapes = [Y_shape, Y_h_shape]
 
     if rnn_type == "LSTM":
-        Y_c_shape = [1, batch_size, hidden_size]
+        #NOCC:invalid-name(其他:onnx example)
+        Y_c_shape = [1, batch_size, hidden_size] 
         outputs.append("Y_c")
         graph_outputs.append(
             helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, list(Y_c_shape))
@@ -1831,7 +1841,7 @@ def test_gather():
     )
 
 
-def test_gatherElement():
+def test_gatherelement():
     op_name, op_type = "test_gather_elements_0", "GatherElements"
     axis = 1
     node = onnx.helper.make_node(
@@ -2448,7 +2458,7 @@ def test_neg():
     op_expect(node, inputs=[x], outputs=[y], op_type=op_type, op_name=op_name)
 
 
-def test_negativeLogLikelihoodLoss():
+def test_negativeloglikelihoodloss():
     op_name, op_type = "test_nllloss_NC", "NegativeLogLikelihoodLoss"
     reduction = "none"
     node = onnx.helper.make_node(
@@ -2459,7 +2469,8 @@ def test_negativeLogLikelihoodLoss():
         name=op_name,
     )
 
-    N, C = 3, 5
+    #NOCC:invalid-name(其他:onnx example)
+    N, C = 3, 5 
     np.random.seed(0)
     input = np.random.rand(N, C).astype(np.float32)
     target = np.random.randint(0, high=C, size=(N,)).astype(np.int64)
@@ -2556,7 +2567,7 @@ def test_reciprocal():
     op_expect(node, inputs=[x], outputs=[y], op_type=op_type, op_name=op_name)
 
 
-def test_reduceL1():
+def test_reducel1():
     op_name, op_type = "test_reduce_l1_default_axes_keepdims_example", "ReduceL1"
     shape = [3, 2, 2]
     axes = None
@@ -2595,7 +2606,7 @@ def test_reduceL1():
     op_expect(node, inputs=[data], outputs=[reduced], op_type=op_type, op_name=op_name)
 
 
-def test_reduceL2():
+def test_reducel2():
     op_name, op_type = "test_reduce_l2_default_axes_keepdims_example", "ReduceL2"
     shape = [3, 2, 2]
     axes = None
@@ -2634,7 +2645,7 @@ def test_reduceL2():
     op_expect(node, inputs=[data], outputs=[reduced], op_type=op_type, op_name=op_name)
 
 
-def test_reduceLogSum():
+def test_reducelogsum():
     op_name, op_type = "test_reduce_log_sum_default", "ReduceLogSum"
     node = onnx.helper.make_node(
         "ReduceLogSum", inputs=["data"], outputs=["reduced"], name=op_name
@@ -2679,7 +2690,7 @@ def test_reduceLogSum():
     op_expect(node, inputs=[data], outputs=[reduced], op_type=op_type, op_name=op_name)
 
 
-def test_reduceLogSumExp():
+def test_reducelogsumexp():
     op_name, op_type = (
         "test_reduce_log_sum_exp_default_axes_keepdims_example",
         "ReduceLogSumExp",
@@ -2720,7 +2731,7 @@ def test_reduceLogSumExp():
     op_expect(node, inputs=[data], outputs=[reduced], op_type=op_type, op_name=op_name)
 
 
-def test_reduceMax():
+def test_reducemax():
     op_name, op_type = "test_reduce_max_default_axes_keepdim_example", "ReduceMax"
     shape = [3, 2, 2]
     axes = None
@@ -2757,7 +2768,7 @@ def test_reduceMax():
     op_expect(node, inputs=[data], outputs=[reduced], op_type=op_type, op_name=op_name)
 
 
-def test_reduceMean():
+def test_reducemean():
     op_name, op_type = "test_reduce_mean_default_axes_keepdims_example", "ReduceMean"
     shape = [3, 2, 2]
     axes = None
@@ -2796,7 +2807,7 @@ def test_reduceMean():
     op_expect(node, inputs=[data], outputs=[reduced], op_type=op_type, op_name=op_name)
 
 
-def test_reduceSum():
+def test_reducesum():
     batch_size = 32
     op_name = "reduce_sum_1"
     with tf.Graph().as_default():
@@ -2872,9 +2883,10 @@ def test_maxunpool():
         model = helper.make_model(graph, producer_name="size_test")
         verify_with_ort_with_trt(model, input_values, op_name=op_name, opset=11)
 
-    # Basic test
-    xT = np.array([[[[5, 6], [7, 8]]]], dtype=np.float32)
-    xI = np.array([[[[0, 7], [13, 15]]]], dtype=np.int64)
+    #NOCC:invalid-name(其他:onnx example)
+    xT = np.array([[[[5, 6], [7, 8]]]], dtype=np.float32) 
+    #NOCC:invalid-name(其他:onnx example)
+    xI = np.array([[[[0, 7], [13, 15]]]], dtype=np.int64) 
     verify_maxunpool(xT, xI, [2, 2], strides=[2, 2], op_name="max_unpool_1")
 
 
@@ -3707,7 +3719,7 @@ def test_if():
     verify_if(cond_array=True, op_name="if_test_2")
 
 
-def test_softmaxCrossEntropyLoss():
+def test_softmax_cross_entropyloss():
     op_name = "test_SoftmaxCrossEntropyLoss"
     reduction = "mean"
     ignore_index = np.int64(-1)
@@ -3720,8 +3732,8 @@ def test_softmaxCrossEntropyLoss():
         ignore_index=ignore_index,
         name=op_name,
     )
-
-    N, C, dim1 = 3, 5, 6
+    #NOCC:invalid-name(其他:onnx example)
+    N, C, dim1 = 3, 5, 6 
     np.random.seed(0)
     x = np.random.rand(N, C, dim1).astype(np.float32)
     labels = np.random.randint(0, high=C, size=(N, dim1)).astype(np.int64)
@@ -3742,7 +3754,7 @@ def test_softmaxCrossEntropyLoss():
     )
 
 
-def test_softmaxCrossEntropy():
+def test_softmax_cross_entropy():
     # Define operator attributes.
     reduction = "mean"
     op_name = "softmaxcrossentropy_2"
@@ -3856,7 +3868,7 @@ if __name__ == "__main__":
     test_atan()
     test_atanh()
     test_averagepool()
-    test_batchNormalization()
+    test_batchnormalization()
     test_ceil()
     test_celu()
     test_clip()
@@ -3865,7 +3877,7 @@ if __name__ == "__main__":
     test_convtranspose()
     test_cos()
     test_cosh()
-    test_depthToSpace()
+    test_depthtospace()
     test_div()
     # ------100 limited library
     test_einsum()
@@ -3875,7 +3887,7 @@ if __name__ == "__main__":
     test_eyelike()
     test_floor()
     test_gather()
-    test_gatherElement()
+    test_gatherelement()
     test_gathernd()
     test_gemm()
     test_globalaveragepool()
@@ -3895,18 +3907,18 @@ if __name__ == "__main__":
     test_min()
     test_mul()
     test_neg()
-    test_negativeLogLikelihoodLoss()
+    test_negativeloglikelihoodloss()
     # ---------100 limited library
     test_prelu()
     test_pow()
     test_reciprocal()
-    test_reduceL1()
-    test_reduceL2()
-    test_reduceLogSum()
-    test_reduceLogSumExp()
-    test_reduceMax()
-    test_reduceMean()
-    test_reduceSum()
+    test_reducel1()
+    test_reducel2()
+    test_reducelogsum()
+    test_reducelogsumexp()
+    test_reducemax()
+    test_reducemean()
+    test_reducesum()
     test_maxunpool()
     test_forward_one_hot()
     test_where()
@@ -3926,6 +3938,6 @@ if __name__ == "__main__":
     test_split()
     test_xor()
     test_if()
-    test_softmaxCrossEntropy()
+    test_softmax_cross_entropy()
     test_logical()
     test_scatternd()

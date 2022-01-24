@@ -7,6 +7,7 @@ import os
 import contextlib
 from jinja2 import FileSystemLoader, Environment
 
+
 @contextlib.contextmanager
 def pushd(new_dir):
     pre_dir = os.getcwd()
@@ -50,12 +51,13 @@ class PluginTemplate(object):
         self._plugin_constant_init = self.parse_plugin_workspace_init(workspace_init)
         self._plugin_kernels_body = template_params.cuda_source_code
 
-    class tensorDims:
-        def __init__(self, nbDims, shape):
-            self.nbDims = nbDims
+    #
+    class TensorDims:
+        def __init__(self, nbdims, shape):
+            self.nbdims = nbdims
             self.shape = tuple(shape)
 
-    class tensorFormat:
+    class TensorFormat:
         def __init__(self, format, type):
             self.format = format
             self.type = type
@@ -88,15 +90,15 @@ class PluginTemplate(object):
     def parse_plugin_output_shape(self, onnx_output_shape):
         plugin_output_shape = []
         for s in onnx_output_shape:
-            nbDims = len(s)
+            nbdims = len(s)
             shape = s
-            plugin_output_shape.append(self.tensorDims(nbDims, shape))
+            plugin_output_shape.append(self.TensorDims(nbdims, shape))
         return plugin_output_shape
 
     def parse_plugin_tensor_format(self, onnx_tensor_type):
         plugin_tensor_format = []
         for dtype in onnx_tensor_type:
-            plugin_tensor_format.append(self.tensorFormat("LINEAR", dtype))
+            plugin_tensor_format.append(self.TensorFormat("LINEAR", dtype))
         return plugin_tensor_format
 
     def parse_plugin_kernels_params(self, kernel_order):
@@ -179,4 +181,3 @@ class PluginTemplate(object):
             self.genearte_header_file()
             self.genearte_source_file()
             self.build_plugin()
-

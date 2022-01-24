@@ -39,11 +39,7 @@ class CudaKernel(object):
         self._target = tvm.target.Target("cuda")
         self._log_file = "/tmp/tuning.log"
         if isinstance(model_path, str):
-            try:
-                self._onnx_model = onnx.load(model_path)
-            except Exception as e:
-                print("load onnx model : {} failed, Detail : {}".format(model_path, e))
-                exit(1)
+            self._onnx_model = onnx.load(model_path)
         else:
             self._onnx_model = model_path
         self._tuning_node = tuning_node
@@ -207,7 +203,7 @@ class CudaKernel(object):
         computed_tensor_shapes = self.compute_tensor_shape(
             self._model_path
         )  
-        ### enhanced shape calculation
+        # enhanced shape calculation
         for i in range(len(tuning_node_inputs)):
             tuning_node_inputs[i].shape = computed_tensor_shapes[i]
         for i in range(len(tuning_node_outputs)):

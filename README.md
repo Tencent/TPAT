@@ -43,7 +43,7 @@
 
     Python3 Env
     ```
-    pip3 install numpy, tensorflow-gpu==1.15, pycuda, tensorrt, tf2onnx,torch, pytest, onnx, onnxruntime, onnx_graphsurgeon, xgboost, jinja2, ctypes, tornado, cloudpickle, psutil
+    pip3 install numpy, tensorflow-gpu==1.15 nvidia-pyindex pycuda tensorrt tf2onnx torch pytest onnx onnxruntime onnx_graphsurgeon xgboost jinja2 ctypes tornado cloudpickle psutil
     ```
     Plugin Compiler Env
     ```

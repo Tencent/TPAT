@@ -61,7 +61,7 @@ public:
         //std::cout << __FUNCTION__ << std::endl;
         {% for tensor_dims in plugin_output_shape %}if (outputIndex == {{ loop.index0 }}){
             nvinfer1::DimsExprs output_shape;
-            output_shape.nbDims = {{tensor_dims.nbDims}};
+            output_shape.nbDims = {{tensor_dims.nbdims}};
             {% for s in tensor_dims.shape %}output_shape.d[{{loop.index0}}] = exprBuilder.constant({{s}});
             {% endfor %}
             return output_shape;
