@@ -28,13 +28,13 @@
 > NOTE: these optional packages are required by Example and UnitTest
 
 ### 2. Clone the TPAT repository
-	```
+	
 	git clone -b master https://github.com/nvidia/TensorRT TPAT
 	cd TPAT
 	git submodule update --init --recursive
-	```
+	
 ### 3. Build BlazerML-TVM
-	```
+	
     mkdir build && cp cmake/config.cmake build
     #Edit build/config.cmake to customize the compilation options
     set(USE_LLVM /usr/local/llvm/bin/llvm-config)
@@ -45,20 +45,20 @@
     #TVM Python package
     export TVM_HOME=/path/to/tvm
 	export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
-    ```
+    
 ### 4. Plugin Compiler Env
 Modify python/trt_plugin/Makefile according to your environment setup.
 
-    ```
+    
     CUDA_PATH: local CUDA installation path
     TRT_LIB_PATH: local TensorRT installation path
-    ```
+    
 
 ## Usage 
 TPAT provides a Python function and command line for usage.
 
 ### Python function 
-	```
+	
 	onnx2plugin(
 	   input_model_path, 
 	   output_model_path, 
@@ -66,7 +66,7 @@ TPAT provides a Python function and command line for usage.
 	   node_types=None, 
 	   plugin_name_dict=None
 	   )
-    ```
+    
 * input_model_path[*required*] : input onnx model including nodes which require TRT plugin
 * output_model_path[*required*] : output onnx model where the corresponding node types are replaced by plugin names. The output onnx model can be directly converted to TRT with onnx parser and built plugin dynamic library.
 * node_names : list of node names for autogen
@@ -75,11 +75,11 @@ TPAT provides a Python function and command line for usage.
 > NOTE: For node_names, node_types, plugin_name_dict, at least one of them should be provided
 
 ### Command line
-	```
+	
 	python3 Onnx2Plugin.py -i input.onnx -o output.onnx -n op_name1 op_name2
 	python3 Onnx2Plugin.py -i input.onnx -o output.onnx -t op_type1 op_type2
 	python3 Onnx2Plugin.py -i input.onnx -o output.onnx -p '{"op_name1": "plugin_name1", "op_name2": "plugin_name2"}'
-    ```
+    
 * -i[*required*]: input_model_path
 * -o[*required*]: output_model_path
 * -n: node_names
@@ -96,8 +96,8 @@ TPAT provides a Python function and command line for usage.
 * trt_plugin/lib contains tpat_{node_name}.so
 
 ## Example && UnitTest
-* Example : [example_tensorflow.py](/examples/gpu/example_tensorflow.py)
-* UnitTest : [test_tapt.py](/tests/python/unittests/gpu/test_tpat.py)
+* Example : [example_tensorflow.py](/examples/example_tensorflow.py)
+* UnitTest : [test_tapt.py](/tests/test_tpat.py)
 
 ## Release notes
 ### Changelog
