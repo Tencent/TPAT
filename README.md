@@ -29,12 +29,11 @@
 
 ### 2. Clone the TPAT repository
 	
-	git clone -b master https://github.com/nvidia/TensorRT TPAT
-	cd TPAT
-	git submodule update --init --recursive
+	git clone --recursive https://github.com/Tencent/TPAT.git TPAT
 	
 ### 3. Build BlazerML-TVM
 	
+	cd TPAT/3rdparty/blazerml-tvm
     mkdir build && cp cmake/config.cmake build
     #Edit build/config.cmake to customize the compilation options
     set(USE_LLVM /usr/local/llvm/bin/llvm-config)
