@@ -67,8 +67,8 @@ class CudaKernel(object):
             mod, params, self._target, include_simple_tasks=True, opt_level=opt_level
         )
 
-        if len(tasks) != 0:
-            self.tune(tasks, weights)
+        #if len(tasks) != 0:
+        #    self.tune(tasks, weights)
 
         # Compile with the history best
         print("Compile...", flush=True)
@@ -138,7 +138,7 @@ class CudaKernel(object):
         tuning_node_inputs = [
             graph.tensors()[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
             for inp in tuning_node.inputs
-            if inp.__class__ == gs.Variable
+            if inp.__class__ == gs.Variable and not inp.is_empty()
         ]
         tuning_node_outputs = [
             graph.tensors()[oup.name].to_variable(dtype=oup.dtype, shape=oup.shape)
@@ -153,11 +153,17 @@ class CudaKernel(object):
         half_model = gs.export_onnx(graph)
         half_model_path = "half_model.onnx"
         onnx.save(half_model, half_model_path)
+      
+        #computed_tensor_shapes = [] 
+        #for i in range(len(tuning_node_inputs)):
+        #    computed_tensor_shapes.append(tuning_node_inputs[i].shape)
+        #for i in range(len(tuning_node_outputs)):
+        #    computed_tensor_shapes.append(tuning_node_outputs[i].shape)
         session = ort.InferenceSession(half_model_path)
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         for gi in graph.inputs:
-            dummy_input[gi.name] = (1 + np.random.random(gi.shape)).astype(gi.dtype)
+            dummy_input[gi.name] = (1 + np.random.random([int(i) for i in gi.shape])).astype(gi.dtype)
         dummy_output = session.run(outname, dummy_input)
 
         computed_tensor_shapes = []
@@ -191,10 +197,11 @@ class CudaKernel(object):
         tuning_node = tuning_node_list[0]
         # self._tuning_node = tuning_node
         # self._onnx_op_type = tuning_node.op
+        # print("cuda_kernel.py tuning node: ", self._tuning_node.inputs[4].name, self._plugin_name)
         tuning_node_inputs = [
             tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
             for inp in tuning_node.inputs
-            if inp.__class__ == gs.Variable
+            if (inp.__class__ == gs.Variable and not inp.is_empty())
         ]
         tuning_node_outputs = [
             tensors[oup.name].to_variable(dtype=oup.dtype, shape=oup.shape)

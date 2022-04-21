@@ -48,6 +48,7 @@ class PluginTemplateParams(object):
         self._cuda_func_order = []
         self._tvm_constant = {}
         self._tvm_workspace_constant = {}
+        self._onnx_input_shape = []
         self._onnx_output_shape = []
         self._onnx_tensor_type = []
         self._storage_id = []
@@ -207,7 +208,7 @@ class PluginTemplateParams(object):
                 self._onnx_tensor_type.append(
                     python_to_trt_type_mapping[inp.dtype.__name__]
                 )
-            else:
+            elif not inp.is_empty():
                 self._onnx_tensor_type.append(
                     python_to_trt_type_mapping[inp.dtype.name]
                 )
@@ -227,6 +228,7 @@ class PluginTemplateParams(object):
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         for gi in graph.inputs:
+            self._onnx_input_shape.append(gi.shape)
             dummy_input[gi.name] = (np.random.random(gi.shape) + 1).astype(gi.dtype)
         dummy_output = session.run(outname, dummy_input)
         for i in range(len(dummy_output)):
@@ -376,6 +378,10 @@ class PluginTemplateParams(object):
         self._plugin_config = output_json
 
     @property
+    def host_func_order(self):
+        return self._tvm_func_order
+
+    @property
     def kernel_order(self):
         return self._cuda_func_order
 
@@ -398,6 +404,10 @@ class PluginTemplateParams(object):
     @property
     def output_shape(self):
         return self._onnx_output_shape
+
+    @property
+    def input_shape(self):
+        return self._onnx_input_shape
 
     @property
     def tensor_type(self):
