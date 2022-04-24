@@ -51,6 +51,8 @@ class PluginTemplateParams(object):
         self._onnx_input_shape = []
         self._onnx_output_shape = []
         self._onnx_tensor_type = []
+        self._onnx_input_python_type = []
+        self._onnx_output_python_type = []
         self._storage_id = []
         self._allocate_global_memory = {}
         self._plugin_config = None
@@ -205,15 +207,18 @@ class PluginTemplateParams(object):
         tuning_node = tuning_nodes[0]
         for inp in tuning_node.inputs:
             if inp.__class__ == gs.Constant:
+                self._onnx_input_python_type.append(tvm_to_c_type_mapping[inp.dtype.__name__])
                 self._onnx_tensor_type.append(
                     python_to_trt_type_mapping[inp.dtype.__name__]
                 )
             elif not inp.is_empty():
+                self._onnx_input_python_type.append(tvm_to_c_type_mapping[inp.dtype.name])
                 self._onnx_tensor_type.append(
                     python_to_trt_type_mapping[inp.dtype.name]
                 )
 
         for oup in tuning_node.outputs:
+            self._onnx_output_python_type.append(tvm_to_c_type_mapping[oup.dtype.name])
             self._onnx_tensor_type.append(python_to_trt_type_mapping[oup.dtype.name])
 
         graph.outputs = [
@@ -221,6 +226,17 @@ class PluginTemplateParams(object):
             for oup in tuning_node.outputs
         ]
         graph.cleanup()
+        self._onnx_output_shape = self.dummy_onnx_ort_output_shape(graph)
+
+        graph.outputs = [
+            tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
+            for inp in tuning_node.inputs
+        ]
+        graph.cleanup()
+        self._onnx_input_shape = self.dummy_onnx_ort_output_shape(graph)
+
+    def dummy_onnx_ort_output_shape(self, graph):
+        onnx_output_shape = []
         submodel = gs.export_onnx(graph)
         dummy_model = "dummy_model.onnx"
         onnx.save(submodel, dummy_model)
@@ -228,12 +244,12 @@ class PluginTemplateParams(object):
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         for gi in graph.inputs:
-            self._onnx_input_shape.append(gi.shape)
             dummy_input[gi.name] = (np.random.random(gi.shape) + 1).astype(gi.dtype)
         dummy_output = session.run(outname, dummy_input)
         for i in range(len(dummy_output)):
-            self._onnx_output_shape.append(dummy_output[i].shape)
+            onnx_output_shape.append(dummy_output[i].shape)
         os.remove(dummy_model)
+        return onnx_output_shape
 
     def align_onnx_and_tvm_input(self, onnx_path):
         """
@@ -432,3 +448,11 @@ class PluginTemplateParams(object):
     @property
     def storage_id(self):
         return self._storage_id
+
+    @property
+    def onnx_input_python_type(self):
+        return self._onnx_input_python_type
+
+    @property
+    def onnx_output_python_type(self):
+        return self._onnx_output_python_type

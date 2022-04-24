@@ -77,7 +77,14 @@ public:
         {% endfor %}
     }
     size_t getWorkspaceSize(const nvinfer1::PluginTensorDesc* inputs, int nbInputs, const nvinfer1::PluginTensorDesc* outputs, int nbOutputs) const noexcept override{
-        return {{plugin_workspace_size}};
+        int workspace_size = {{plugin_workspace_size}};
+        {%- for input in plugin_input_size_type %}
+        workspace_size += {{input.size}} * sizeof({{input.dtype}});
+        {%- endfor %}
+        {%- for output in plugin_output_size_type %}
+        workspace_size += {{output.size}} * sizeof({{output.dtype}});
+        {%- endfor %}
+        return workspace_size;
     }
     int enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const nvinfer1::PluginTensorDesc* outputDesc, const void* const* inputs, void* const* outputs, void* workspace, cudaStream_t stream) noexcept override;
 

@@ -82,32 +82,21 @@ int tpat_test_gathernd::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, con
       
     }
     else if( 1  < inputDesc[0].dims.d[0] && inputDesc[0].dims.d[0] <= 128){
-      int bs = inputDesc[0].dims.d[0];
-      int input_offset_begin_0 = 0;
-      int input_offset_end_0 = input_offset_begin_0 + 128 * 2 * 4 * sizeof(float);
-      int input_offset_begin_1 = input_offset_end_0;
-      int input_offset_end_1 = input_offset_begin_1 + 128 * 2 * sizeof(int);
-      int output_offset_begin = input_offset_end_1;
-      int output_offset_end = output_offset_begin + 128 * 4 * sizeof(float);    
-      checkCudaErrors(cudaMemset(workspace, 0, output_offset_end));
-      checkCudaErrors(cudaMemcpy(workspace, (void *)(inputs[0]), bs * 2 * 4 * sizeof(float), cudaMemcpyDeviceToDevice));
-      std::cout << "input 0 memcpy d2d done" << std::endl;
-      checkCudaErrors(cudaMemcpyAsync(workspace + input_offset_begin_1, (void *)inputs[1], bs * 2 * sizeof(int), cudaMemcpyDeviceToDevice));
-      std::cout << "input 1 memcpy d2d done" << std::endl;
+      
+
+
+
       dim3 dimBlock, dimGrid;
+      
       dimGrid = dim3(1,1,1);
       dimBlock = dim3(512,1,1);
-      //tvmgen_default_fused_transpose_gather_nd_kernel0_bs128<<<dimGrid, dimBlock, 0, stream>>>((float*)outputs[0], (float*)inputs[0], (int*)inputs[1]);
+      tvmgen_default_fused_transpose_gather_nd_kernel0_bs128<<<dimGrid, dimBlock, 0, stream>>>((float*)outputs[0], (float*)inputs[0], (int*)inputs[1]);
       
-      tvmgen_default_fused_transpose_gather_nd_kernel0_bs128<<<dimGrid, dimBlock, 0, stream>>>((float*)(workspace + output_offset_begin), (float*)workspace, (int*)(workspace + input_offset_begin_1));
-      std::cout << "kernel execute done" << std::endl;
-       
-      //tvmgen_default_fused_transpose_gather_nd_kernel0_bs128<<<dimGrid, dimBlock, 0, stream>>>((float*)outputs[0], (float*)workspace, (int*)workspace + input_offset_begin_1);
-      checkCudaErrors(cudaMemcpyAsync((void*)outputs[0], (void*)(workspace + output_offset_begin), bs * 4 * sizeof(float), cudaMemcpyDeviceToDevice));  
-      //std::cout << "output memcpy d2d done" << std::endl;
-
     }else if( 128  < inputDesc[0].dims.d[0] && inputDesc[0].dims.d[0] <= 256){
       
+
+
+
       dim3 dimBlock, dimGrid;
       
       dimGrid = dim3(1,1,1);

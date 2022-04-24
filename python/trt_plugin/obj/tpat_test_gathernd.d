@@ -1,4 +1,4 @@
-tpat_test_lstm.o : src/tpat_test_lstm.cu \
+tpat_test_gathernd.o : src/tpat_test_gathernd.cu \
     /usr/include/stdc-predef.h \
     /usr/local/cuda-11.0//include/cuda_runtime.h \
     /usr/local/cuda-11.0//include/crt/host_config.h \
@@ -126,7 +126,7 @@ tpat_test_lstm.o : src/tpat_test_lstm.cu \
     /usr/local/cuda-11.0//include/texture_indirect_functions.h \
     /usr/local/cuda-11.0//include/surface_indirect_functions.h \
     /usr/local/cuda-11.0//include/device_launch_parameters.h \
-    src/tpat_test_lstm.h \
+    src/tpat_test_gathernd.h \
     /root/workspace/download/ft_local/TensorRT-8.0.0.3/include/NvInfer.h \
     /root/workspace/download/ft_local/TensorRT-8.0.0.3/include/NvInferLegacyDims.h \
     /root/workspace/download/ft_local/TensorRT-8.0.0.3/include/NvInferRuntimeCommon.h \

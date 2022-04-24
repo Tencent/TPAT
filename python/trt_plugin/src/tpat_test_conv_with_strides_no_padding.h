@@ -25,11 +25,11 @@ namespace nvinfer1
 namespace plugin
 {
 
-class tpat_test_gathernd: public IPluginV2DynamicExt {
+class tpat_test_conv_with_strides_no_padding: public IPluginV2DynamicExt {
 public:
-    tpat_test_gathernd() {}
+    tpat_test_conv_with_strides_no_padding() {}
     
-    tpat_test_gathernd(const void *buffer, size_t length) {
+    tpat_test_conv_with_strides_no_padding(const void *buffer, size_t length) {
     }
 
     virtual size_t getSerializationSize() const noexcept override {
@@ -47,9 +47,9 @@ public:
             condition &= inOut[pos].type == nvinfer1::DataType::kFLOAT;
         }
         if (pos == 1){
-            //std::cout << (inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) << ", " << (inOut[pos].type == nvinfer1::DataType::kINT32) << std::endl;
+            //std::cout << (inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) << ", " << (inOut[pos].type == nvinfer1::DataType::kFLOAT) << std::endl;
             condition &= inOut[pos].format == nvinfer1::TensorFormat::kLINEAR;
-            condition &= inOut[pos].type == nvinfer1::DataType::kINT32;
+            condition &= inOut[pos].type == nvinfer1::DataType::kFLOAT;
         }
         if (pos == 2){
             //std::cout << (inOut[pos].format == nvinfer1::TensorFormat::kLINEAR) << ", " << (inOut[pos].type == nvinfer1::DataType::kFLOAT) << std::endl;
@@ -61,7 +61,7 @@ public:
     }
 
     nvinfer1::IPluginV2DynamicExt* clone() const noexcept override {
-        return new tpat_test_gathernd();
+        return new tpat_test_conv_with_strides_no_padding();
     }
     int getNbOutputs() const noexcept override {
         //std::cout << __FUNCTION__ << std::endl;
@@ -71,9 +71,11 @@ public:
         //std::cout << __FUNCTION__ << std::endl;
         if (outputIndex == 0){
             nvinfer1::DimsExprs output_shape;
-            output_shape.nbDims = 2;
-            output_shape.d[0] = inputs[0].d[0];
-            output_shape.d[1] = exprBuilder.constant(4);
+            output_shape.nbDims = 4;
+            output_shape.d[0] = exprBuilder.constant(1);
+            output_shape.d[1] = exprBuilder.constant(1);
+            output_shape.d[2] = exprBuilder.constant(3);
+            output_shape.d[3] = exprBuilder.constant(2);
             
             return output_shape;
         }
@@ -87,11 +89,7 @@ public:
         
     }
     size_t getWorkspaceSize(const nvinfer1::PluginTensorDesc* inputs, int nbInputs, const nvinfer1::PluginTensorDesc* outputs, int nbOutputs) const noexcept override{
-        int workspace_size = 0;
-        workspace_size += 2048 * sizeof(float);
-        workspace_size += 512 * sizeof(int);
-        workspace_size += 1024 * sizeof(float);
-        return workspace_size;
+        return 0;
     }
     int enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const nvinfer1::PluginTensorDesc* outputDesc, const void* const* inputs, void* const* outputs, void* workspace, cudaStream_t stream) noexcept override;
 
@@ -101,7 +99,7 @@ public:
     void destroy() noexcept override { delete this; }
     void setPluginNamespace(const char* szNamespace) noexcept override {mNamespace = szNamespace;}
     const char* getPluginNamespace() const noexcept override {return mNamespace.c_str();}
-    const char* getPluginType() const noexcept override {return "tpat_test_gathernd";}
+    const char* getPluginType() const noexcept override {return "tpat_test_conv_with_strides_no_padding";}
     const char* getPluginVersion() const noexcept override {return "1";}
     void attachToContext(cudnnContext * /*cudnn*/, cublasContext * /*cublas*/, nvinfer1::IGpuAllocator * /*allocator*/) noexcept {}
     void detachFromContext() noexcept {}
@@ -112,19 +110,19 @@ private:
     std::string mNamespace;
 };
 
-class tpat_test_gatherndCreator: public nvinfer1::IPluginCreator {
+class tpat_test_conv_with_strides_no_paddingCreator: public nvinfer1::IPluginCreator {
 public:
-    tpat_test_gatherndCreator(){
+    tpat_test_conv_with_strides_no_paddingCreator(){
 	    mFC.nbFields = mPluginAttributes.size();
 	    mFC.fields = mPluginAttributes.data();
     }
     nvinfer1::IPluginV2DynamicExt* deserializePlugin(const char* name, const void* serialData, size_t serialLength) noexcept override {
-        tpat_test_gathernd* obj = new tpat_test_gathernd{serialData, serialLength};
+        tpat_test_conv_with_strides_no_padding* obj = new tpat_test_conv_with_strides_no_padding{serialData, serialLength};
         obj->setPluginNamespace(mNamespace.c_str());
         return obj;
     }
     
-    const char* getPluginName() const noexcept override {return "tpat_test_gathernd";}
+    const char* getPluginName() const noexcept override {return "tpat_test_conv_with_strides_no_padding";}
     const char* getPluginVersion() const noexcept override {return "1";}
 
     void setPluginNamespace(const char* szNamespace) noexcept override {mNamespace = szNamespace;}
@@ -136,7 +134,7 @@ public:
     }
     nvinfer1::IPluginV2DynamicExt* createPlugin(const char* name, const nvinfer1::PluginFieldCollection* fc) noexcept override {
         //std::cout << __FUNCTION__ << std::endl;
-        tpat_test_gathernd* obj = new tpat_test_gathernd{};
+        tpat_test_conv_with_strides_no_padding* obj = new tpat_test_conv_with_strides_no_padding{};
         obj->setPluginNamespace(mNamespace.c_str());
         return obj;
     }
