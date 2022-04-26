@@ -237,8 +237,6 @@ def get_onnxruntime_output(model, inputs):
 def verify_with_ort_with_trt(
     model,
     inputs,
-    model_1,
-    inputs_1,
     op_name,
     opset=None,
     dtype="float32",
@@ -249,12 +247,12 @@ def verify_with_ort_with_trt(
 ):
     if opset is not None:
         model.opset_import[0].version = opset
-    onnx.save(model_1, INPUT_MODEL_FILE)
+    onnx.save(model, INPUT_MODEL_FILE)
     if np_result is None:
         ort_result = get_onnxruntime_output(model, inputs)
     else:
         ort_result = np_result
-    in_data = convert_to_list(inputs_1)
+    in_data = convert_to_list(inputs)
     ops_name = [op_name]
     trt_plugin_name = onnx2plugin(
         INPUT_MODEL_FILE, OUTPUT_MODEL_FILE, node_names=ops_name, dynamic_bs=False, min_bs=1, max_bs=256, opt_bs=128
@@ -282,7 +280,7 @@ def verify_with_ort_with_trt(
             exit(-1)
         inputs, outputs, bindings, stream = allocate_buffers(engine)
         with engine.create_execution_context() as context:
-            for i in range(len(inputs_1)):
+            for i in range(len(inputs)):
                 input_data = in_data[i].ravel()
                 np.copyto(inputs[i].host, input_data)
             trt_result = do_inference(
@@ -3920,7 +3918,7 @@ if __name__ == "__main__":
     #test_celu()
     #test_clip()
     #test_concat()
-    #test_conv()
+    test_conv()
     #test_convtranspose()
     #test_cos()
     #test_cosh()
@@ -3977,7 +3975,7 @@ if __name__ == "__main__":
     #test_forward_mean()
     #test_instance_norm()
     #test_lrn()
-    test_lstm()
+    #test_lstm()
     #test_binary_ops()
     #test_gru()
     #test_all_reduce_funcs()

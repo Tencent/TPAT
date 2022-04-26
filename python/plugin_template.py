@@ -46,10 +46,6 @@ class PluginTemplate(object):
         self._plugin_kernels_body = template_params.cuda_source_code
         self._onnx_input_python_type = template_params.onnx_input_python_type
         self._onnx_output_python_type = template_params.onnx_output_python_type
-        self._plugin_input_size = self.get_mul_shape_size(self._plugin_input_shape)
-        self._plugin_output_size = self.get_mul_shape_size(self._plugin_output_shape)
-        self._plugin_input_size_type = self.get_mul_shape_size_type(self._plugin_input_size, self._onnx_input_python_type)
-        self._plugin_output_size_type = self.get_mul_shape_size_type(self._plugin_output_size, self._onnx_output_python_type)
 
     @property
     def plugin_name(self):
@@ -91,33 +87,16 @@ class PluginTemplate(object):
             self.length = length
 
     class Case:
-        def __init__(self, batch_size, plugin_template):
+        def __init__(self, batch_size, plugin_template, dy_plugin_input_size_type_without_bs=None, dy_plugin_output_size_type_without_bs=None):
             self.batch_size = batch_size
             self.plugin_template = plugin_template
+            self.dy_plugin_input_size_type_without_bs = dy_plugin_input_size_type_without_bs
+            self.dy_plugin_output_size_type_without_bs = dy_plugin_output_size_type_without_bs
 
     class Shape:
         def __init__(self, size, dtype):
             self.size = size
             self.dtype = dtype
-
-    def get_mul_shape_size(self, shape_dims):
-        from functools import reduce
-        from operator import mul
-        dy_plugin_shape_size = []
-        for dims in shape_dims:
-            dy_plugin_shape_size.append(reduce(mul, dims.shape))
-        return dy_plugin_shape_size
-
-    def get_mul_shape_size_type(self, dy_plugin_shape_size, onnx_python_type):
-        dynamic_shape_size_type = list()
-        for i in range(len(dy_plugin_shape_size)):
-            dynamic_shape_size_type.append(
-                self.Shape(
-                    size=dy_plugin_shape_size[i],
-                    dtype=onnx_python_type[i]
-                )
-            )
-        return dynamic_shape_size_type
 
     def parse_plugin_input_shape(self, onnx_input_shape):
         plugin_input_shape = []
@@ -259,6 +238,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         self._dy_plugin_output_shape = self.get_dynamic_output_shape(self._plugin_output_shape)
         self._dy_plugin_output_size_type = list()
         self._dy_plugin_input_size_type = list()
+        self.first_push = True
 
     def get_dynamic_output_shape(self, plugin_output_shape):
         dy_plugin_output_shape = []
@@ -271,16 +251,57 @@ class DynamicBatchPluginTemplate(PluginTemplate):
             )
         return dy_plugin_output_shape
 
+    def get_dynamic_shape_size(self, shape_dims):
+        from functools import reduce
+        from operator import mul
+        dy_plugin_shape_size = []
+        for dims in shape_dims:
+            dy_plugin_shape_size.append(reduce(mul, dims.shape))
+        return dy_plugin_shape_size
+
+    def get_dynamic_shape_size_type(self, dy_plugin_shape_size, onnx_python_type):
+        dynamic_shape_size_type = list()
+        for i in range(len(dy_plugin_shape_size)):
+            dynamic_shape_size_type.append(
+                self.Shape(
+                    size=dy_plugin_shape_size[i],
+                    dtype=onnx_python_type[i]
+                )
+            )
+        return dynamic_shape_size_type
+
+    def get_dynamic_shape_size_type_without_bs(self, dy_shape_size_type, batch_size):
+        dy_shape_size_type_without_bs = list()
+        for shape in dy_shape_size_type:
+            dy_shape_size_type_without_bs.append(
+                self.Shape(
+                    size=shape.size / batch_size,
+                    dtype=shape.dtype
+                )
+            )
+        return dy_shape_size_type_without_bs
+
     def push_plugin_template(self, batch_size, plugin_template):
         duplicate_list = set()
+        _dy_plugin_input_size = self.get_dynamic_shape_size(plugin_template._plugin_input_shape)
+        _dy_plugin_output_size = self.get_dynamic_shape_size(plugin_template._plugin_output_shape)
+        print("dy_plugin_input_size : ", _dy_plugin_input_size)
         for kernel in plugin_template._plugin_kernels_params:
             func_name = kernel.name
+            print(kernel.enqueue_params)
             func_name_with_bs = func_name + '_bs' + str(batch_size)
             kernel.name = func_name_with_bs
             if kernel.name in duplicate_list:
                 continue
             duplicate_list.add(kernel.name)
             plugin_template._plugin_kernels_body = plugin_template._plugin_kernels_body.replace(func_name, func_name_with_bs)
+
+            if not self.first_push:            
+                for i in range(len(_dy_plugin_input_size)):
+                    kernel.enqueue_params = kernel.enqueue_params.replace("inputs[{}]".format(i), "(workspace + offset_input_{})".format(i))
+                for i in range(len(_dy_plugin_output_size)):
+                    kernel.enqueue_params = kernel.enqueue_params.replace("outputs[{}]".format(i), "(workspace + offset_output_{})".format(i))
+        self.first_push = False
 
         kernels_body = plugin_template._plugin_kernels_body.split('extern "C"')
         real_kernels_body = []
@@ -292,23 +313,35 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         plugin_template._plugin_kernels_body = '\n'.join(real_kernels_body)
 
         self._plugin_workspace_size = max(self._plugin_workspace_size, plugin_template._plugin_workspace_size)
-        self._dy_plugin_input_size_type = plugin_template._plugin_input_size_type
-        self._dy_plugin_output_size_type = plugin_template._plugin_output_size_type
+        
+        self._dy_plugin_input_size_type = self.get_dynamic_shape_size_type(_dy_plugin_input_size, self._onnx_input_python_type)
+        self._dy_plugin_output_size_type = self.get_dynamic_shape_size_type(_dy_plugin_output_size, self._onnx_output_python_type)
+        self._dy_plugin_input_size_type_without_bs = self.get_dynamic_shape_size_type_without_bs(self._dy_plugin_input_size_type, batch_size)
+        self._dy_plugin_output_size_type_without_bs = self.get_dynamic_shape_size_type_without_bs(self._dy_plugin_output_size_type, batch_size)
 
         self._plugin_template_list.append(
             self.Case(
                 batch_size,
-                plugin_template
+                plugin_template,
+                dy_plugin_input_size_type_without_bs=self._dy_plugin_input_size_type_without_bs,
+                dy_plugin_output_size_type_without_bs=self._dy_plugin_output_size_type_without_bs
             )
         )
+
+    def get_shape_size(self, shape_dims):
+        shape_size_list = []
+        for dims in shapes_dims:
+            shape_size = 1
+            for dim in dims:
+                shape_size = shape_size * dim
+            shape_size_list.append(shape_size)
+        return shape_size_list
 
     def generate_source_file(self):
         template = self._template_env.get_template(self._template_source_file)
         output_text = template.render(
             plugin_name=self._plugin_name,
             cases=self._plugin_template_list,
-            plugin_input_size_type=self._dy_plugin_input_size_type,
-            plugin_output_size_type=self._dy_plugin_output_size_type
         )
         with open("./trt_plugin/src/{}.cu".format(self._plugin_name), "w") as f:
             f.write(output_text)    

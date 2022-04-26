@@ -1,39 +1,0 @@
-rnn_test:¯
-‚
-X
-W
-RYY_hY_ctest_lstm_without_bias"LSTM*
-hidden_size  *
-layout *)
-activationsJHardSigmoidJTanhJTanh rnn_testZ
-X
-
-
-
-Z
-W
-
-
-€
-Z
-R
-
-
-€
- b
-Y
-
-
-
-
- b
-Y_h
-
-
-
- b
-Y_c
-
-
-
- B

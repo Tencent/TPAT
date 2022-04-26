@@ -59,22 +59,38 @@ int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const 
     }
     {% else -%}
     else if( {{ loop.previtem.batch_size }}  < inputDesc[0].dims.d[0] && inputDesc[0].dims.d[0] <= {{ case.batch_size }}){
+      int bs = inputDesc[0].dims.d[0];
+      int offset_input_0 = {{ case.plugin_template._plugin_workspace_size }};
+      {%- for inputShape in case.dy_plugin_input_size_type_without_bs %}
+      checkCudaErrors(cudaMemcpyAsync(workspace + offset_input_{{loop.index0}}, (void *)(inputs[{{loop.index0}}]), bs * {{inputShape.size}} * sizeof({{ inputShape.dtype }}), cudaMemcpyDeviceToDevice));
+      {%- if loop.last %}
+      int offset_output_0 = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});;
+      {% else %}
+      int offset_input_{{loop.index}} = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});
+      {%- endif %}
+      {%- endfor %}
+      {%- for outputShape in case.dy_plugin_output_size_type_without_bs %}
+      {%- if not loop.last %}
+      int offset_output_{{loop.index}} = offset_output_{{loop.index0}} + {{case.batch_size}} * {{outputShape.size}} * sizeof({{outputShape.dtype}});
+      {%- endif %}
+      {%- endfor %}
       {% for constant in case.plugin_template._plugin_constant_init -%}
       const {{constant.type}} constant_{{constant.index}}[{{constant.length}}] = { {{constant.value}} };
       checkCudaErrors(cudaMemcpyAsync({{constant.pos}}, &constant_{{constant.index}}, {{constant.length}} * sizeof({{constant.type}}), cudaMemcpyHostToDevice, stream));
-      {%- endfor %}
-
-
-
+      {%- endfor -%}
       dim3 dimBlock, dimGrid;
-      {% for kernel in case.plugin_template._plugin_kernels_params %}
+      {%- for kernel in case.plugin_template._plugin_kernels_params %}
       dimGrid = dim3{{kernel.grid_dim}};
       dimBlock = dim3{{kernel.block_dim}};
       {{kernel.name}}<<<dimGrid, dimBlock, 0, stream>>>({{kernel.enqueue_params}});
-      {% endfor %}
+      {%- endfor %}
+      {%- for outputShape in case.dy_plugin_output_size_type_without_bs %}
+      checkCudaErrors(cudaMemcpyAsync((void *)(outputs[{{loop.index0}}]), (workspace + offset_output_{{loop.index0}}), bs * {{outputShape.size}} * sizeof({{ outputShape.dtype }}), cudaMemcpyDeviceToDevice));
+      {%- endfor %}
     }
     {%- endif %}
     {%- endfor %}
+    return 0;
 }
 
 REGISTER_TENSORRT_PLUGIN({{plugin_name}}Creator);

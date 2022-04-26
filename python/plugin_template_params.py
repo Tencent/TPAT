@@ -230,7 +230,7 @@ class PluginTemplateParams(object):
 
         graph.outputs = [
             tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
-            for inp in tuning_node.inputs
+            for k, inp in enumerate(tuning_node.inputs) if (inp.__class__ == gs.Variable and not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))
         ]
         graph.cleanup()
         self._onnx_input_shape = self.dummy_onnx_ort_output_shape(graph)
