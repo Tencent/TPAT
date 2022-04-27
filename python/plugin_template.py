@@ -37,6 +37,7 @@ class PluginTemplate(object):
         onnx_input_shape = template_params.input_shape
         self._plugin_output_shape = self.parse_plugin_output_shape(onnx_output_shape)
         self._plugin_input_shape = self.parse_plugin_input_shape(onnx_input_shape)
+        self._plugin_tensor_input_index = template_params.onnx_tensor_input_index
         onnx_tensor_type = template_params.tensor_type
         self._plugin_tensor_format = self.parse_plugin_tensor_format(onnx_tensor_type)
         kernel_order = template_params.kernel_order
@@ -285,7 +286,6 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         duplicate_list = set()
         _dy_plugin_input_size = self.get_dynamic_shape_size(plugin_template._plugin_input_shape)
         _dy_plugin_output_size = self.get_dynamic_shape_size(plugin_template._plugin_output_shape)
-        print("dy_plugin_input_size : ", _dy_plugin_input_size)
         for kernel in plugin_template._plugin_kernels_params:
             func_name = kernel.name
             print(kernel.enqueue_params)
@@ -295,10 +295,12 @@ class DynamicBatchPluginTemplate(PluginTemplate):
                 continue
             duplicate_list.add(kernel.name)
             plugin_template._plugin_kernels_body = plugin_template._plugin_kernels_body.replace(func_name, func_name_with_bs)
-
+            print("_plugin_tensor_input_index: ", self._plugin_tensor_input_index)
+            assert(len(self._plugin_tensor_input_index) > 0, "incorrect _plugin_tensor_input_index")
             if not self.first_push:            
                 for i in range(len(_dy_plugin_input_size)):
-                    kernel.enqueue_params = kernel.enqueue_params.replace("inputs[{}]".format(i), "(workspace + offset_input_{})".format(i))
+                    index = self._plugin_tensor_input_index[i]
+                    kernel.enqueue_params = kernel.enqueue_params.replace("inputs[{}]".format(index), "(workspace + offset_input_{})".format(i))
                 for i in range(len(_dy_plugin_output_size)):
                     kernel.enqueue_params = kernel.enqueue_params.replace("outputs[{}]".format(i), "(workspace + offset_output_{})".format(i))
         self.first_push = False
@@ -314,6 +316,8 @@ class DynamicBatchPluginTemplate(PluginTemplate):
 
         self._plugin_workspace_size = max(self._plugin_workspace_size, plugin_template._plugin_workspace_size)
         
+        _dy_plugin_input_size = self.get_dynamic_shape_size(plugin_template._plugin_input_shape)
+        _dy_plugin_output_size = self.get_dynamic_shape_size(plugin_template._plugin_output_shape)
         self._dy_plugin_input_size_type = self.get_dynamic_shape_size_type(_dy_plugin_input_size, self._onnx_input_python_type)
         self._dy_plugin_output_size_type = self.get_dynamic_shape_size_type(_dy_plugin_output_size, self._onnx_output_python_type)
         self._dy_plugin_input_size_type_without_bs = self.get_dynamic_shape_size_type_without_bs(self._dy_plugin_input_size_type, batch_size)
@@ -341,7 +345,8 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         template = self._template_env.get_template(self._template_source_file)
         output_text = template.render(
             plugin_name=self._plugin_name,
-            cases=self._plugin_template_list,
+            plugin_tensor_input_index=self._plugin_tensor_input_index,
+            cases=self._plugin_template_list
         )
         with open("./trt_plugin/src/{}.cu".format(self._plugin_name), "w") as f:
             f.write(output_text)    
@@ -357,6 +362,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
             plugin_tensor_format=self._plugin_tensor_format,
             plugin_input_size_type=self._dy_plugin_input_size_type,
             plugin_output_size_type=self._dy_plugin_output_size_type,
+            plugin_tensor_input_index=self._plugin_tensor_input_index
         )
         with open("./trt_plugin/src/{}.h".format(self._plugin_name), "w") as f:
             f.write(output_text)

@@ -50,6 +50,8 @@ class PluginTemplateParams(object):
         self._tvm_workspace_constant = {}
         self._onnx_input_shape = []
         self._onnx_output_shape = []
+        self._onnx_weight_input_index = []
+        self._onnx_tensor_input_index = []
         self._onnx_tensor_type = []
         self._onnx_input_python_type = []
         self._onnx_output_python_type = []
@@ -58,6 +60,7 @@ class PluginTemplateParams(object):
         self._plugin_config = None
 
         self.infer_for_output_shape()
+        self.input_weight_and_tensor_index()
         self.parse()
         self.align_onnx_and_tvm_input(self._one_node_model)
         self.match_address_for_eid()
@@ -232,6 +235,15 @@ class PluginTemplateParams(object):
             tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
             for k, inp in enumerate(tuning_node.inputs) if (inp.__class__ == gs.Variable and not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))
         ]
+        ### for debug
+        # graph.outputs = []
+        # for k, inp in enumerate((tuning_node.inputs)):
+        #     if inp.__class__ == gs.Variable:
+        #         if not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"): 
+        #             graph.outputs.append(tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape))
+        #         else:
+        #             print("tuning_node inputs: ", tuning_node.i(k, 0))
+        ### for debug
         graph.cleanup()
         self._onnx_input_shape = self.dummy_onnx_ort_output_shape(graph)
 
@@ -250,6 +262,19 @@ class PluginTemplateParams(object):
             onnx_output_shape.append(dummy_output[i].shape)
         os.remove(dummy_model)
         return onnx_output_shape
+
+    def input_weight_and_tensor_index(self):
+        """
+        calculate the index of weight input and tensor input
+        """
+        graph = gs.import_onnx(onnx.load(self._onnx_path))
+        tuning_nodes = [node for node in graph.nodes if node.name == self._tuning_name]
+        assert len(tuning_nodes) != 0
+        tuning_node = tuning_nodes[0]
+        self._onnx_tensor_input_index = [k for k, inp in enumerate(tuning_node.inputs) 
+            if (inp.__class__ == gs.Variable and not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))]
+        self._onnx_weight_input_index = [k for k, inp in enumerate(tuning_node.inputs) 
+            if (inp.__class__ == gs.Constant or (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))]
 
     def align_onnx_and_tvm_input(self, onnx_path):
         """
@@ -424,6 +449,14 @@ class PluginTemplateParams(object):
     @property
     def input_shape(self):
         return self._onnx_input_shape
+
+    @property
+    def onnx_weight_input_index(self):
+        return self._onnx_weight_input_index
+
+    @property
+    def onnx_tensor_input_index(self):
+        return self._onnx_tensor_input_index
 
     @property
     def tensor_type(self):

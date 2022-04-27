@@ -59,10 +59,10 @@ int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const 
     }
     {% else -%}
     else if( {{ loop.previtem.batch_size }}  < inputDesc[0].dims.d[0] && inputDesc[0].dims.d[0] <= {{ case.batch_size }}){
-      int bs = inputDesc[0].dims.d[0];
+      int bs = inputDesc[{{plugin_tensor_input_index[0]}}].dims.d[0];
       int offset_input_0 = {{ case.plugin_template._plugin_workspace_size }};
       {%- for inputShape in case.dy_plugin_input_size_type_without_bs %}
-      checkCudaErrors(cudaMemcpyAsync(workspace + offset_input_{{loop.index0}}, (void *)(inputs[{{loop.index0}}]), bs * {{inputShape.size}} * sizeof({{ inputShape.dtype }}), cudaMemcpyDeviceToDevice));
+      checkCudaErrors(cudaMemcpyAsync(workspace + offset_input_{{loop.index0}}, (void *)(inputs[{{plugin_tensor_input_index[loop.index0]}}]), bs * {{inputShape.size}} * sizeof({{ inputShape.dtype }}), cudaMemcpyDeviceToDevice));
       {%- if loop.last %}
       int offset_output_0 = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});;
       {% else %}

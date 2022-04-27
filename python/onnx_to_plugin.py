@@ -190,6 +190,8 @@ def onnx2plugin(
         onnx_name_mapping_trt_plugin = generate_plugin_library(
             dy_input_model_path, nodes, plugin_name_dict, dynamic_bs, tune_bs_list
         )
+        for dy_input_model in dy_input_model_path:
+            os.remove(dy_input_model)
     else:
         onnx_name_mapping_trt_plugin = generate_plugin_library(
             input_model_path, nodes, plugin_name_dict 
