@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # TPAT - TensorRT Plugin Autogen Tool
 ## Introduction
 1. Automatically generate high-performance TensorRT plugins for unsupported operators or replacing inefficient kernels.
