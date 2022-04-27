@@ -8,6 +8,7 @@ tvm_to_c_type_mapping = {
     "uint8": "int8",
     "uint1": "int",
     "float64": "float",
+    "bool": "int",
 }
 
 # type mapping : python -> trt
