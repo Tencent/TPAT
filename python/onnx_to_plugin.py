@@ -120,7 +120,7 @@ def convert_node_weights(input_model_path, tuning_nodes):
         for i, inp in enumerate(tuning_node.inputs):
             if isinstance(inp, gs.ir.tensor.Constant):
                 const_input = tensors[inp.name]
-                print("const_input: ", const_input, "\nvalues: ",const_input.values, "\n_values: ", const_input._values)
+                print("const_input: ", const_input, "\nvalues: ",const_input.values, "\n")
                 if const_input._values.size < 10:
                     continue
                 print("Warning: the initializer input will be converted to Constant node due to its large size")
@@ -128,7 +128,7 @@ def convert_node_weights(input_model_path, tuning_nodes):
                                     op="Constant",
                                     inputs=[],
                                     name="inserted_const_for_" + const_input.name.split(":")[0],
-                                    attrs={"value": gs.ir.tensor.Constant(const_input.name, const_input._values)},
+                                    attrs={"value": gs.ir.tensor.Constant(const_input.name, const_input.values)},
                                 )  # INT32
                 const_node_out = gs.Variable(const_node.name + ":0")
                 const_node.outputs = [const_node_out]
