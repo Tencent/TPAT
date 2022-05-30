@@ -3918,7 +3918,7 @@ if __name__ == "__main__":
     #test_celu()
     #test_clip()
     #test_concat()
-    test_conv()
+    #test_conv()
     #test_convtranspose()
     #test_cos()
     #test_cosh()

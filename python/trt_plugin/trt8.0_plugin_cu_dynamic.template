@@ -11,6 +11,45 @@
 using namespace nvinfer1;
 using namespace plugin;
 
+#define TILE_DIM 32
+#define BLOCK_ROWS 8
+#define BLOCK_COLS 4
+
+__global__ void transpose_share_mem(float *odata, float *idata, int n1, int n2, int n3){
+    int x = threadIdx.x + blockDim.x * blockIdx.x;
+    int y = threadIdx.y + blockDim.y * blockIdx.y;
+    int z = threadIdx.z + blockDim.z * blockIdx.z;
+    __shared__ float block[TILE_DIM][BLOCK_ROWS + 1];
+    if((x < n1) && (y < n2) && (z < n3)){
+        int in_index = x * n2 * n3 + y * n3 + z;
+        block[threadIdx.y][threadIdx.x] = idata[in_index];
+    }
+    __syncthreads();
+    if((x < n1) && (y < n2) && (z < n3)){
+        int out_index = y * n1 * n3 + x * n1 + z;
+        odata[out_index] = block[threadIdx.y][threadIdx.x];
+    }
+}
+
+__global__ void transpose_naive(float *odata, float *idata, int n1, int n2, int n3){
+   int i = threadIdx.x + blockDim.x * blockIdx.x;
+   int j = threadIdx.y + blockDim.y * blockIdx.y;
+   int k = threadIdx.z + blockDim.z * blockIdx.z;
+   int in_index = i * n2 * n3 + j * n3 + k;
+   int out_index = j * n3 * n1 + i * n3 + k;
+   if(i < n1 && j < n2 && k < n3){
+       odata[out_index] = idata[in_index];
+   }
+}
+
+void transpose_3D_xyz2yxz(float *odata, float *idata, int n1, int n2, int n3){
+    dim3 dimGrid = dim3((int)ceil((float)n1 / TILE_DIM), (int)ceil((float)n2 / BLOCK_ROWS), (int)ceil((float)n3 / BLOCK_COLS));
+    dim3 dimBlock = dim3(TILE_DIM, BLOCK_ROWS, BLOCK_COLS);
+    //transpose_share_mem<<<dimGrid, dimBlock>>>(odata, idata, n1, n2, n3);
+    transpose_naive<<<dimGrid, dimBlock>>>(odata, idata, n1, n2, n3);
+}
+
+
 // CUDA Runtime error messages
 #ifdef __DRIVER_TYPES_H__
 static const char *_cudaGetErrorEnum(cudaError_t error)
@@ -45,7 +84,7 @@ std::vector<PluginField> {{plugin_name}}Creator::mPluginAttributes;
 int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const nvinfer1::PluginTensorDesc* outputDesc, const void* const* inputs, void* const* outputs, void* workspace, cudaStream_t stream) noexcept {
     {% for case in cases -%}
     {% if loop.first -%} 
-    if( inputDesc[0].dims.d[0] == {{ case.batch_size }}){
+    if( inputDesc[0].dims.d[{{plugin_input_dy_dim}}] == {{ case.batch_size }}){
       {% for constant in case.plugin_template._plugin_constant_init -%}
       const {{constant.type}} constant_{{constant.index}}[{{constant.length}}] = { {{constant.value}} };
       checkCudaErrors(cudaMemcpyAsync({{constant.pos}}, &constant_{{constant.index}}, {{constant.length}} * sizeof({{constant.type}}), cudaMemcpyHostToDevice, stream));
@@ -58,24 +97,42 @@ int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const 
       {% endfor %}
     }
     {% else -%}
-    else if( {{ loop.previtem.batch_size }}  < inputDesc[0].dims.d[0] && inputDesc[0].dims.d[0] <= {{ case.batch_size }}){
-      int bs = inputDesc[{{plugin_tensor_input_index[0]}}].dims.d[0];
+    else if( {{ loop.previtem.batch_size }}  < inputDesc[0].dims.d[{{plugin_input_dy_dim}}] && inputDesc[0].dims.d[{{plugin_input_dy_dim}}] <= {{ case.batch_size }}){
+      int bs = inputDesc[{{plugin_tensor_input_index[0]}}].dims.d[{{plugin_input_dy_dim}}];
       int offset_input_0 = {{ case.plugin_template._plugin_workspace_size }};
+
       {%- for inputShape in case.dy_plugin_input_size_type_without_bs %}
-      checkCudaErrors(cudaMemcpyAsync(workspace + offset_input_{{loop.index0}}, (void *)(inputs[{{plugin_tensor_input_index[loop.index0]}}]), bs * {{inputShape.size}} * sizeof({{ inputShape.dtype }}), cudaMemcpyDeviceToDevice));
+      {%- if ( plugin_input_dy_dim == 1) %}
+      {%- if loop.first %}
+      float *tmp;
+      cudaMalloc(&tmp, ({{case.batch_size}} *  {{inputShape.size}} * sizeof({{inputShape.dtype}})));
+      transpose_3D_xyz2yxz((tmp), (float*)(inputs[{{plugin_tensor_input_index[loop.index0]}}]), {{input_dim_shape_without_bs[plugin_tensor_input_index[loop.index0]][0]}}, bs, {{input_dim_shape_without_bs[plugin_tensor_input_index[loop.index0]][1]}});
+      transpose_3D_xyz2yxz((float*)(workspace + offset_input_{{loop.index0}}), (tmp), {{case.batch_size}}, {{input_dim_shape_without_bs[plugin_tensor_input_index[loop.index0]][0]}}, {{input_dim_shape_without_bs[plugin_tensor_input_index[loop.index0]][1]}});
+      int offset_input_{{loop.index}} = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});
+      {%- elif loop.last %}
+      int offset_output_0 = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});
+      {%- else %}
+      int offset_input_{{loop.index}} = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});
+      {%- endif %}
+      {%- else %}
       int offset_input_{{loop.index0}}_padding = offset_input_{{loop.index0}} + bs * {{inputShape.size}} * sizeof({{ inputShape.dtype }});
+      checkCudaErrors(cudaMemcpyAsync(workspace + offset_input_{{loop.index0}}, (void *)(inputs[{{plugin_tensor_input_index[loop.index0]}}]), bs * {{inputShape.size}} * sizeof({{ inputShape.dtype }}), cudaMemcpyDeviceToDevice));
       checkCudaErrors(cudaMemcpyAsync(workspace + offset_input_{{loop.index0}}_padding, (void *)(inputs[{{plugin_tensor_input_index[loop.index0]}}]), ({{case.batch_size}} - bs) * {{inputShape.size}} * sizeof({{ inputShape.dtype }}), cudaMemcpyDeviceToDevice));
       {%- if loop.last %}
-      int offset_output_0 = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});;
+      int offset_output_0 = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});
       {% else %}
       int offset_input_{{loop.index}} = offset_input_{{loop.index0}} + {{case.batch_size}} * {{inputShape.size}} * sizeof({{inputShape.dtype}});
       {%- endif %}
+      {% endif %}
       {%- endfor %}
+
       {%- for outputShape in case.dy_plugin_output_size_type_without_bs %}
       {%- if not loop.last %}
-      int offset_output_{{loop.index}} = offset_output_{{loop.index0}} + {{case.batch_size}} * {{outputShape.size}} * sizeof({{outputShape.dtype}});
+      //int offset_output_{{loop.index}} = offset_output_{{loop.index0}} + {{case.batch_size}} * {{outputShape.size}} * sizeof({{outputShape.dtype}});
+      int offset_output_{{loop.index}} = offset_output_{{loop.index0}} + {{case.plugin_template._output_workspace_size[loop.index0] }} * sizeof({{outputShape.dtype}});
       {%- endif %}
       {%- endfor %}
+
       {% for constant in case.plugin_template._plugin_constant_init -%}
       const {{constant.type}} constant_{{constant.index}}[{{constant.length}}] = { {{constant.value}} };
       checkCudaErrors(cudaMemcpyAsync({{constant.pos}}, &constant_{{constant.index}}, {{constant.length}} * sizeof({{constant.type}}), cudaMemcpyHostToDevice, stream));
@@ -86,8 +143,18 @@ int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const 
       dimBlock = dim3{{kernel.block_dim}};
       {{kernel.name}}<<<dimGrid, dimBlock, 0, stream>>>({{kernel.enqueue_params}});
       {%- endfor %}
+
       {%- for outputShape in case.dy_plugin_output_size_type_without_bs %}
+      {%- if loop.first %}
+      {% if ( plugin_input_dy_dim == 1) %}
+      transpose_3D_xyz2yxz(tmp, (float*)(workspace + offset_output_{{loop.index0}}),  {{output_dim_shape_without_bs[loop.index0][0]}}, {{case.batch_size}}, {{output_dim_shape_without_bs[loop.index0][1]}});
+      transpose_3D_xyz2yxz((float*)(outputs[{{loop.index0}}]), (tmp), bs, {{output_dim_shape_without_bs[loop.index0][0]}}, {{output_dim_shape_without_bs[loop.index0][1]}});
+      {% else %}
       checkCudaErrors(cudaMemcpyAsync((void *)(outputs[{{loop.index0}}]), (workspace + offset_output_{{loop.index0}}), bs * {{outputShape.size}} * sizeof({{ outputShape.dtype }}), cudaMemcpyDeviceToDevice));
+      {% endif %}
+      {% else %}
+      checkCudaErrors(cudaMemcpyAsync((void *)(outputs[{{loop.index0}}]), (workspace + offset_output_{{loop.index0}}), bs * {{outputShape.size}} * sizeof({{ outputShape.dtype }}), cudaMemcpyDeviceToDevice));
+      {% endif %}
       {%- endfor %}
     }
     {%- endif %}

@@ -226,9 +226,9 @@ def main():
     input_model_file_dynamic = "model/test_onehot_trt_dynamic.onnx"
 
     node_names = [op_name]
-    #trt_plugin_names = onnx2plugin(
-    #    input_model_file, output_model_file, node_names=node_names, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
-    #)
+    trt_plugin_names = onnx2plugin(
+        input_model_file, output_model_file, node_names=node_names, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
+    )
     trt_plugin_names = ['tpat_' + op_name]
     #trt_plugin_names = ['tpat_test_onehot_dynamic']
     for trt_plugin_name in trt_plugin_names:

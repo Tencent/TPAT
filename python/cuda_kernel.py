@@ -209,7 +209,7 @@ class CudaKernel(object):
         ]
         computed_tensor_shapes = self.compute_tensor_shape(
             self._model_path
-        )  
+        )
         # enhanced shape calculation
         for i in range(len(tuning_node_inputs)):
             tuning_node_inputs[i].shape = computed_tensor_shapes[i]

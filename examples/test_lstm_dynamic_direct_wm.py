@@ -33,17 +33,34 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(IGPU)
 TRT_LOGGER = trt.Logger(trt.Logger.VERBOSE)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-batch_size', type=int, default=1, metavar='NUMBER')
+parser.add_argument('-batch_size', type=int, default=4, metavar='NUMBER')
 parser.add_argument('-dynamic', type=str, default="true", metavar='STRING')
+parser.add_argument('-build', type=str, default='false', metavar='STRING')
+parser.add_argument('-min', type=int, default=1, metavar='NUMBER')
+parser.add_argument('-opt', type=int, default=4, metavar='NUMBER')
+parser.add_argument('-max', type=int, default=8, metavar='NUMBER')
 
 args = parser.parse_args()
 
 dynamic = True
 
+build = False
+
 if args.dynamic.lower() == 'false':
     dynamic = False
 
 batch_size = args.batch_size
+if dynamic == True:
+    op_name = 'test_lstm'
+else:
+    op_name = 'test_lstm_bs%d' % batch_size
+
+if args.build.lower() == 'true':
+    build = True
+
+min_bs = args.min
+opt_bs = args.opt
+max_bs = args.max
 
 # Simple helper data class that's a little nicer to use than a 2-tuple.
 class HostDeviceMem(object):
@@ -206,7 +223,7 @@ def main():
             return hiddens,states
       
         op_name = 'test_LSTM'
-        n_input, n_steps, n_hidden = 1, 1, 4
+        n_input, n_steps, n_hidden = 32, 2, 128
 
         if dynamic == True:
             input_x = tf.placeholder(dtype=tf.float32,shape=[None,n_steps,n_input], name='input_x')
@@ -221,6 +238,10 @@ def main():
         sess.run(tf.global_variables_initializer())
 
         x_batch = np.random.rand(batch_size, n_steps, n_input).astype(np.float32)
+
+        #for i in range(0, 2):
+        #    for j in range(0, 2):
+        #        x_batch[3][i][j] = 0.0
 
         input_node = [input_x]
         input_data = [x_batch]
@@ -260,12 +281,9 @@ def main():
         )
     )
 
-    # os.remove("model/test_op_{}.pb".format(op_name))
+    os.remove("model/test_op_{}.pb".format(op_name))
 
-    if dynamic == True:
-        op_name = 'test_lstm'
-    else:
-        op_name = 'test_lstm_bs%d' % batch_size
+
     import onnx
     import onnx_graphsurgeon as gs
     graph = gs.import_onnx(onnx.load(input_model_file))
@@ -275,10 +293,10 @@ def main():
 
     node_names = [op_name]
     node_types = ["LSTM"]
-    #if dynamic == True:
-    #trt_plugin_names = onnx2plugin(
-    #    input_model_file, output_model_file, node_names=node_names, dynamic_bs=dynamic, min_bs=1, max_bs=4, opt_bs=2
-    #)
+    if build == True:
+        trt_plugin_names = onnx2plugin(
+            input_model_file, output_model_file, node_names=node_names, dynamic_bs=dynamic, min_bs=min_bs, max_bs=max_bs, opt_bs=opt_bs
+        )
     #else:
     #    trt_plugin_names = onnx2plugin(
     #        input_model_file, output_model_file, node_names=node_names, dynmia
@@ -301,7 +319,7 @@ def main():
             profile = builder.create_optimization_profile()
             for input in input_node:
                 shape_without_batch = input.shape.as_list()[1:]
-                profile.set_shape(input.name, [1] + shape_without_batch, [256] + shape_without_batch, [256] + shape_without_batch )
+                profile.set_shape(input.name, [min_bs] + shape_without_batch, [opt_bs] + shape_without_batch, [max_bs] + shape_without_batch )
             #profile.set_shape('input:0', [1, 64], [256, 64], [1024, 64])
             builder_config.add_optimization_profile(profile)
 
@@ -310,6 +328,7 @@ def main():
         #if os.path.isfile(trt_file_path):
         #   os.remove(trt_file_path)
         if os.path.isfile(trt_file_path):
+            print("----------- deserialize cuda engine------------")
             with open(trt_file_path, 'rb') as f:
                 engine_str = f.read()
             with trt.Runtime(TRT_LOGGER) as runtime:
@@ -326,8 +345,8 @@ def main():
                 print("[ERROR] engine is None")
                 exit(-1)
             print('build engine done')
-            with open(trt_file_path, 'wb') as f:
-                f.write(engine.serialize())
+            #with open(trt_file_path, 'wb') as f:
+            #    f.write(engine.serialize())
 
 
         inputs, outputs, bindings, stream = allocate_buffers(engine)
@@ -354,14 +373,19 @@ def main():
             time_sum = (d - c).total_seconds()
             trt_time = "TRT execution time " + str(time_sum * 1000 / iterations) + " ms"
             trt_result = output
-
-    print(hidden)
-    print("?????")
-    print(states)
+    print("tf hidden : ")
+    print(np.array(hidden).flatten())
+    print("trt hidden : ")
+    print(trt_result[1].flatten())
     print('------------------------------------') 
-    print(trt_result)
-    print(str(np.allclose(np.array(hidden).flatten(), trt_result[1].flatten(), atol=1e-5)))
-    print(str(np.allclose(np.array(states).flatten(), trt_result[0].flatten(), atol=1e-5)))
+    print("tf states : ")
+    print(np.array(states).flatten())
+    print("trt states : ")
+    print(trt_result[0].flatten())
+
+    #print(trt_result)
+    print(str(np.allclose(np.array(hidden).flatten(), trt_result[1].flatten(), atol=1e-3)))
+    #print(str(np.allclose(np.array(states).flatten(), trt_result[0].flatten(), atol=1e-5)))
 
     # if dynamic == True:
     #     np.save('dynamic_bs{}_{op_name}.npy'.format(batch_size, op_name), trt_result)

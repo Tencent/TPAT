@@ -142,14 +142,15 @@ def main():
 
         if dynamic == True:
             input_ph_1 = tf.placeholder(dtype=tf.float32, shape=[None, 2], name='input_1') 
-            input_ph_2 = tf.placeholder(dtype=tf.float32, shape=[2], name='input_2') 
+            input_ph_2 = tf.placeholder(dtype=tf.float32, shape=[None, 1], name='input_2') 
             op_name = 'test_add'
         else:
-            input_ph = tf.placeholder(dtype=tf.float32, shape=[batch_size, 2], name='input') 
+            input_ph_1 = tf.placeholder(dtype=tf.float32, shape=[batch_size, 2], name='input_1') 
+            input_ph_2 = tf.placeholder(dtype=tf.float32, shape=[batch_size, 1], name='input_2') 
             op_name = 'test_add_bs%d' % batch_size
         ## test matmul
         input_data_1 = np.random.rand(batch_size, 2).astype(np.float32)
-        input_data_2 = np.random.rand(2).astype(np.float32)     
+        input_data_2 = np.random.rand(batch_size, 1).astype(np.float32)     
         x = tf.add(input_ph_1, input_ph_2, name=op_name)
         ## test matmul
       
@@ -220,10 +221,10 @@ def main():
 
     # node_names = [op_name]
     node_types = ["Add"]
-    trt_plugin_names = onnx2plugin(
-        input_model_file, output_model_file, node_types=node_types, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
-    )
-    # trt_plugin_names = ['tpat_' + op_name]
+    #trt_plugin_names = onnx2plugin(
+    #    input_model_file, output_model_file, node_types=node_types, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
+    #)
+    trt_plugin_names = ['tpat_' + op_name]
     # trt_plugin_names = ['tpat_test_matmul_bs256']
     
     for trt_plugin_name in trt_plugin_names:
@@ -249,8 +250,8 @@ def main():
 
 
         trt_file_path = '{}.gie'.format(op_name)
-        if os.path.isfile(trt_file_path):
-           os.remove(trt_file_path)
+        #if os.path.isfile(trt_file_path):
+        #   os.remove(trt_file_path)
         if os.path.isfile(trt_file_path):
             with open(trt_file_path, 'rb') as f:
                 engine_str = f.read()

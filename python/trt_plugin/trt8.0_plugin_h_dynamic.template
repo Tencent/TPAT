@@ -59,12 +59,17 @@ public:
     }
     nvinfer1::DimsExprs getOutputDimensions(int outputIndex, const nvinfer1::DimsExprs* inputs, int nbInputs, nvinfer1::IExprBuilder& exprBuilder) noexcept override {
         //std::cout << __FUNCTION__ << std::endl;
-        {% for tensor_dims in plugin_output_shape %}if (outputIndex == {{ loop.index0 }}){
+        {% for tensor_dims in plugin_output_shape -%}
+            if (outputIndex == {{ loop.index0 }}){
             nvinfer1::DimsExprs output_shape;
-            output_shape.nbDims = {{tensor_dims.nbdims + 1}};
-            output_shape.d[0] = inputs[{{plugin_tensor_input_index[0]}}].d[0];
-            {% for s in tensor_dims.shape %}output_shape.d[{{loop.index0 + 1}}] = exprBuilder.constant({{s}});
-            {% endfor %}
+            output_shape.nbDims = {{ tensor_dims.nbdims }};
+            {%- for s in tensor_dims.shape %}
+            {%- if loop.index0 == tensor_dims.dynamic_dim %}
+            output_shape.d[{{loop.index0}}] = inputs[{{plugin_tensor_input_index[0]}}].d[{{plugin_input_dy_dim}}];
+            {%- else %}
+            output_shape.d[{{loop.index0}}] = exprBuilder.constant({{s}});
+            {%- endif %}
+            {%- endfor %}
             return output_shape;
         }
         {% endfor %}

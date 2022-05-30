@@ -141,31 +141,26 @@ def main():
         #)
 
         if dynamic == True:
-            input_ph = tf.placeholder(dtype=tf.float32, shape=[None, 16], name='input') 
-            op_name = 'test_matmul'
+            input_ph_1 = tf.placeholder(dtype=tf.float32, shape=[None, 2], name='input_1') 
+            input_ph_2 = tf.placeholder(dtype=tf.float32, shape=[None, 3], name='input_2') 
+            op_name = 'test_concat'
         else:
-            input_ph = tf.placeholder(dtype=tf.float32, shape=[batch_size, 256], name='input') 
-            op_name = 'test_matmul_bs%d' % batch_size
+            input_ph_1 = tf.placeholder(dtype=tf.float32, shape=[batch_size, 2], name='input_1') 
+            input_ph_2 = tf.placeholder(dtype=tf.float32, shape=[batch_size, 3], name='input_2') 
+            op_name = 'test_concat_bs%d' % batch_size
         ## test matmul
-        input_data = np.random.rand(batch_size, 16).astype(np.float32)     
-        w1 = tf.get_variable('weight1', shape=[16, 256], initializer=tf.orthogonal_initializer())
-        x = tf.matmul(input_ph, w1, name=op_name)
-        w2 = tf.get_variable('weight2', shape=[256, 128], initializer=tf.orthogonal_initializer())
-        x = tf.matmul(x, w2, name=op_name+"_2")
-        w3 = tf.get_variable('weight3', shape=[128, 4], initializer=tf.orthogonal_initializer())
-        x = tf.matmul(x, w3, name=op_name+"_3")
+        input_data_1 = np.random.rand(batch_size, 2).astype(np.float32)     
+        input_data_2 = np.random.rand(batch_size, 3).astype(np.float32)     
+        x = tf.concat([input_ph_1, input_ph_2], 1, name=op_name)
         ## test matmul
-        print("\n\noperator shape: ", input_ph.shape, w1.shape, x.shape)
-      
 
         output = tf.identity(x, name="output")
         sess.run(tf.global_variables_initializer())
 
-        input_node = [input_ph]
-        input_data = [input_data]
-        input_with_num = ["input:0"]
+        input_node = [input_ph_1, input_ph_2]
+        input_data = [input_data_1, input_data_2]
+        input_with_num = ["input_1:0", "input_2:0"]
         output_with_num = ["output:0"]
-
 
         input_dict = {e: input_data[i] for i, e in enumerate(input_node)}
         time_sum = 0
@@ -223,13 +218,13 @@ def main():
     # run_ort(input_model_file)
     # exit(0)
 
-    #node_names = [op_name + '_2']
-    node_types = ["MatMul"]
-    #trt_plugin_names = onnx2plugin(
-    #    input_model_file, output_model_file, node_types=node_types, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
-    #)
-    #trt_plugin_names = ['tpat_' + op_name + '_2']
-    trt_plugin_names = ['tpat_' + op_name, 'tpat_' + op_name + '_2', 'tpat_' + op_name + '_3']
+    node_names = [op_name]
+    #node_types = ["MatMul"]
+    trt_plugin_names = onnx2plugin(
+        input_model_file, output_model_file, node_names=node_names, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
+    )
+    trt_plugin_names = ['tpat_' + op_name]
+    #trt_plugin_names = ['tpat_' + op_name, 'tpat_' + op_name + '_2', 'tpat_' + op_name + '_3']
     # trt_plugin_names = ['tpat_test_matmul_bs256']
     
     for trt_plugin_name in trt_plugin_names:
@@ -253,8 +248,7 @@ def main():
             #profile.set_shape('input:0', [1, 64], [256, 64], [1024, 64])
             builder_config.add_optimization_profile(profile)
 
-
-        trt_file_path = 'matmul.gie'
+        trt_file_path = 'concat.gie'
         #if os.path.isfile(trt_file_path):
         #   os.remove(trt_file_path)
         if os.path.isfile(trt_file_path):
@@ -281,7 +275,8 @@ def main():
         inputs, outputs, bindings, stream = allocate_buffers(engine)
         with engine.create_execution_context() as context:
             if dynamic == True:
-                context.set_binding_shape(0, [batch_size] + input_node[0].shape.as_list()[1:])    
+                    for i in range(len(inputs)):
+                        context.set_binding_shape(i, [batch_size] + input_node[i].shape.as_list()[1:])    
             
             for i in range(len(inputs)):
                 data = input_data[i].ravel()

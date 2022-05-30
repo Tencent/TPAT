@@ -111,52 +111,40 @@ def main():
     config.gpu_options.allow_growth = True
 
     with tf.Session(config=config) as sess:
-        # test reduce
-        #op_name = "rightshift"
-        #batch_size = 256
-        #dtype = "int32"
-        #in_shape = (3, 11)
-        #lh_data = np.random.randint(1, 8, size=(3, 11)).astype(dtype)
-        #rh_data = np.random.randint(1, 3, size=(3, 11)).astype(dtype)
-        #lft_data = tf.placeholder(dtype, in_shape, name="lft_data")
-        #rgt_data = tf.placeholder(dtype, in_shape, name="rgt_data")
-        #x = tf.bitwise.right_shift(lft_data, rgt_data, name=op_name)
-        #input_node = [lft_data, rgt_data]
-        #input_data = [lh_data, rh_data]
-        #output = tf.identity(x, name="output")
-        #sess.run(tf.global_variables_initializer())
-        #input_dict = {e: input_data[i] for i, e in enumerate(input_node)}
-        #input_with_num = ["lft_data:0", "rgt_data:0"]
-        #output_with_num = ["output:0"]
-        #time_sum = 0
-        #for i in range(20):
-        #    tf_result = sess.run([output], input_dict)
-        #a = datetime.now()
-        #for i in range(iterations):
-        #    tf_result = sess.run([output], input_dict)
-        #b = datetime.now()
-        #time_sum = (b - a).total_seconds()
-        #tf_time = (
-        #    "[INFO] TF  execution time " + str(time_sum * 1000 / iterations) + " ms"
-        #)
-
+        input_data = (np.random.rand(batch_size, 64)).astype(np.float32)
+        input_weight = np.random.rand(64, 256).astype(np.float32)
         if dynamic == True:
-            input_ph = tf.placeholder(dtype=tf.float32, shape=[None, 16], name='input') 
-            op_name = 'test_matmul'
+            input_ph = tf.placeholder(dtype=tf.float32, shape=[None, 64], name='input') 
+            op_name = 'test_satternd'
         else:
-            input_ph = tf.placeholder(dtype=tf.float32, shape=[batch_size, 256], name='input') 
-            op_name = 'test_matmul_bs%d' % batch_size
-        ## test matmul
-        input_data = np.random.rand(batch_size, 16).astype(np.float32)     
-        w1 = tf.get_variable('weight1', shape=[16, 256], initializer=tf.orthogonal_initializer())
-        x = tf.matmul(input_ph, w1, name=op_name)
-        w2 = tf.get_variable('weight2', shape=[256, 128], initializer=tf.orthogonal_initializer())
-        x = tf.matmul(x, w2, name=op_name+"_2")
-        w3 = tf.get_variable('weight3', shape=[128, 4], initializer=tf.orthogonal_initializer())
-        x = tf.matmul(x, w3, name=op_name+"_3")
-        ## test matmul
-        print("\n\noperator shape: ", input_ph.shape, w1.shape, x.shape)
-      
+            input_ph = tf.placeholder(dtype=tf.float32, shape=[batch_size, 64], name='input') 
+            op_name = 'test_satternd_bs%d' % batch_size
+        
+        #x = tf.layers.dense(input_ph, 1)
+        #idx = tf.reshape(tf.layers.dense(x, 1), [tf.shape(x)[0]])
+        #idx = tf.cast(tf.clip_by_value(idx, 0, 1), tf.int32)
+        #indices = tf.stack([tf.range(tf.shape(x)[0]), idx], axis=1)
+        ## data = tf.reshape(tf.layers.dense(x[:,0:1], 2*5000*10000), [-1, 2, 5000, 10000])
+        ## data = tf.reshape(tf.layers.dense(x, 2 * 128 * 128), [2 * 128, -1, 128])
+        ## data = tf.reshape(tf.layers.dense(x, 158*600), [-1, 158, 600])
+        #np.random.seed(0)
+        #data = tf.constant(np.random.normal(size=(256, 158, 600)).astype(np.float32))
+        #x = tf.gather_nd(data, indices, batch_dims=0, name=op_name)
+        #print("\n\noperator shape: ", data.shape, indices.shape, x.shape)
+
+        ### non-duplicated indices case
+        x = tf.layers.dense(input_ph, 1)
+        data = tf.reshape(tf.layers.dense(x, 128*256), [-1, 128, 256])
+        x = tf.add(x, 1)
+        idx = tf.reshape(tf.layers.dense(x, 1), [tf.shape(x)[0]])
+        idx = tf.cast(tf.clip_by_value(idx, 0, 100), tf.int32)
+        indices = tf.stack([tf.range(tf.shape(x)[0]), idx], axis=1)
+        # indices = tf.ones([batch_size, 2], tf.int32)
+        x = tf.add(x, 2)
+        updates = tf.reshape(tf.layers.dense(x, 256), [-1, 256])
+        x = tf.tensor_scatter_nd_update(data, indices, updates, name=op_name)
+        print("\n\noperator shape: ", data.shape, indices.shape, updates.shape, x.shape)
+
 
         output = tf.identity(x, name="output")
         sess.run(tf.global_variables_initializer())
@@ -199,40 +187,21 @@ def main():
     )
     os.remove("model/test_op_{}.pb".format(op_name))
 
-    ### use ort to check results
-    # import onnx
-    # import onnxruntime as ort
-    # from onnx import shape_inference
-    # import onnx_graphsurgeon as gs
-    # def run_ort(model_path):
-    #     inferred_model = shape_inference.infer_shapes(onnx.load(model_path))
-    #     graph = gs.import_onnx(inferred_model)
-    #     EP_list = ['CUDAExecutionProvider']
-    #     session = ort.InferenceSession(model_path, providers=EP_list)
-    #     outname = [output.name for output in session.get_outputs()]
-    #     print("onnx model output: ", outname)
-    #     dummy_input = {}
-    #     for gi in graph.inputs:
-    #         gi.shape[0] = 2
-    #         np.random.seed(1234)
-    #         dummy_input[gi.name] = (np.random.random([int(i) for i in gi.shape])).astype(gi.dtype)
-    #     for i in range(10):
-    #         dummy_output = session.run(outname, dummy_input)
-    #     print("ort result: ", dummy_output)
-    #     return dummy_output
-    # run_ort(input_model_file)
-    # exit(0)
-
-    #node_names = [op_name + '_2']
-    node_types = ["MatMul"]
-    #trt_plugin_names = onnx2plugin(
-    #    input_model_file, output_model_file, node_types=node_types, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
-    #)
-    #trt_plugin_names = ['tpat_' + op_name + '_2']
-    trt_plugin_names = ['tpat_' + op_name, 'tpat_' + op_name + '_2', 'tpat_' + op_name + '_3']
-    # trt_plugin_names = ['tpat_test_matmul_bs256']
+    node_names = [op_name]
+    trt_plugin_names = onnx2plugin(
+        input_model_file, output_model_file, node_names=node_names, dynamic_bs=dynamic, min_bs=1, max_bs=256, opt_bs=128
+    )
+    trt_plugin_names = ['tpat_' + op_name]
     
+    # plugin_registry = trt.get_plugin_registry()
+    # for plugin in plugin_registry.plugin_creator_list:
+    #     print("Resitered plugin: ", plugin.name)
     for trt_plugin_name in trt_plugin_names:
+        # tvm_plugin_creator = plugin_registry.get_plugin_creator(trt_plugin_name, "1")
+        # if tvm_plugin_creator is not None:
+        #     print(tvm_plugin_creator.name)
+        #     plugin_registry.deregister_creator(tvm_plugin_creator) 
+
         assert os.path.isfile(f"./trt_plugin/lib/{trt_plugin_name}.so")
         ctypes.cdll.LoadLibrary("./trt_plugin/lib/{}.so".format(trt_plugin_name))
 
@@ -254,7 +223,7 @@ def main():
             builder_config.add_optimization_profile(profile)
 
 
-        trt_file_path = 'matmul.gie'
+        trt_file_path = 'satternd.gie'
         #if os.path.isfile(trt_file_path):
         #   os.remove(trt_file_path)
         if os.path.isfile(trt_file_path):
@@ -274,8 +243,8 @@ def main():
                 print("[ERROR] engine is None")
                 exit(-1)
             print('build engine done')
-            with open(trt_file_path, 'wb') as f:
-                f.write(engine.serialize())
+            #with open(trt_file_path, 'wb') as f:
+            #    f.write(engine.serialize())
 
 
         inputs, outputs, bindings, stream = allocate_buffers(engine)
@@ -302,17 +271,19 @@ def main():
             time_sum = (d - c).total_seconds()
             trt_time = "TRT execution time " + str(time_sum * 1000 / iterations) + " ms"
             trt_result = output
+
     
     # np.allclose(tf_result[0].flatten(), trt_result[0].flatten(), atol=1e-5)
-    # np.save("tf_test_matmul_bs256", tf_result[0])
-    # np.save("tpat_test_matmul_bs256", trt_result[0])
+    # np.save("tf_test_gathernd_bs255", tf_result[0])
+    # np.save("tpat_test_gathernd_bs255", trt_result[0])
 
     for i in range(len(trt_result)):
-        print(tf_result[i].flatten()[:10])
-        print(trt_result[i][:10])
+        print(tf_result[i].flatten()[:50])
+        print(trt_result[i][:50])
         
         print(tf_result[i].shape)
         print(trt_result[i].shape)
+    
         print(
             "trt cross_check output_%d " % i
             + str(np.allclose(tf_result[i].flatten(), trt_result[i], atol=1e-5)),

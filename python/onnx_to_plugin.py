@@ -14,7 +14,7 @@ from plugin_template import StaticBatchPluginTemplate, DynamicBatchPluginTemplat
 from onnx_modified import OnnxModified
 
 
-def generate_plugin_library(input_model_path, nodes, plugin_name_dict=None, dynamic_bs=False, tune_bs_list=None):
+def generate_plugin_library(input_model_path, nodes, plugin_name_dict=None, dynamic_bs=False, tune_bs_list=None, naive_onnx_model_path=None):
     onnx_name_mapping_trt_plugin = {}
     trt_plugin_mapping_onnx_node = {}
 
@@ -86,7 +86,7 @@ def generate_plugin_library(input_model_path, nodes, plugin_name_dict=None, dyna
                 template_params_list.append(PluginTemplateParams(
                     cuda_kernel, explicit_bs_input_model_path, tuning_name
                 ))
-            dynamic_template_params = DynamicBatchPluginTemplate(template_params_list[0])
+            dynamic_template_params = DynamicBatchPluginTemplate(template_params_list[0], naive_onnx_model_path)
             for i, template_params in enumerate(template_params_list):
                 dynamic_template_params.push_plugin_template(tune_bs_list[i], StaticBatchPluginTemplate(template_params))
             dynamic_template_params.fill()
@@ -120,8 +120,8 @@ def convert_node_weights(input_model_path, tuning_nodes):
         for i, inp in enumerate(tuning_node.inputs):
             if isinstance(inp, gs.ir.tensor.Constant):
                 const_input = tensors[inp.name]
-                print("const_input: ", const_input, "\nvalues: ",const_input.values, "\n")
-                if const_input._values.size < 10:
+                print("const_input: ", const_input, "\nvalues: ",const_input.values)
+                if const_input.values.size < 10:
                     continue
                 print("Warning: the initializer input will be converted to Constant node due to its large size")
                 const_node = gs.Node(
@@ -188,7 +188,7 @@ def onnx2plugin(
             explicit_bs_onnx_file = add_explicit_bs(input_onnx_model, cur_bs)
             dy_input_model_path.append(explicit_bs_onnx_file)    
         onnx_name_mapping_trt_plugin = generate_plugin_library(
-            dy_input_model_path, nodes, plugin_name_dict, dynamic_bs, tune_bs_list
+            dy_input_model_path, nodes, plugin_name_dict, dynamic_bs, tune_bs_list, input_model_path
         )
         for dy_input_model in dy_input_model_path:
             os.remove(dy_input_model)

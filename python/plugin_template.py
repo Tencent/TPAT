@@ -6,6 +6,9 @@
 import os
 import contextlib
 import re
+import onnx
+import onnx_graphsurgeon as gs
+from onnx import shape_inference
 from jinja2 import FileSystemLoader, Environment
 
 
@@ -33,6 +36,7 @@ class PluginTemplate(object):
         self._plugin_output_number = template_params.output_num
         self._plugin_output_type = template_params.output_type
         self._plugin_workspace_size = template_params.workspace_size
+        self._plugin_total_workspace_size = template_params.total_workspace_size
         onnx_output_shape = template_params.output_shape
         onnx_input_shape = template_params.input_shape
         self._plugin_output_shape = self.parse_plugin_output_shape(onnx_output_shape)
@@ -47,15 +51,18 @@ class PluginTemplate(object):
         self._plugin_kernels_body = template_params.cuda_source_code
         self._onnx_input_python_type = template_params.onnx_input_python_type
         self._onnx_output_python_type = template_params.onnx_output_python_type
+        self._input_workspace_size = template_params.input_workspace_size
+        self._output_workspace_size = template_params.output_workspace_size
 
     @property
     def plugin_name(self):
         return self._plugin_name
 
     class TensorDims:
-        def __init__(self, nbdims, shape):
+        def __init__(self, nbdims, shape, dynamic_dim=None):
             self.nbdims = nbdims
             self.shape = tuple(shape)
+            self.dynamic_dim = dynamic_dim
 
     class TensorFormat:
         def __init__(self, format, type):
@@ -228,6 +235,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
     def __init__(
         self,
         template_params,
+        naive_onnx_model_path,
         TEMPLATE_HEADER_FILE="./trt_plugin/trt8.0_plugin_h_dynamic.template",
         TEMPLATE_SOURCE_FILE="./trt_plugin/trt8.0_plugin_cu_dynamic.template",
     ):
@@ -236,18 +244,104 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         self._template_header_file = TEMPLATE_HEADER_FILE
         self._template_source_file = TEMPLATE_SOURCE_FILE
         self._plugin_template_list = list()
+        # {0 : 1} : input_0 index1 is batchSize
+        self._batch_dim_in_inputs, self._batch_dim_in_outputs, self._input_dim_shape_without_bs, self._output_dim_shape_without_bs = self.get_batch_dim_in_input_output(naive_onnx_model_path)
         self._dy_plugin_output_shape = self.get_dynamic_output_shape(self._plugin_output_shape)
         self._dy_plugin_output_size_type = list()
         self._dy_plugin_input_size_type = list()
         self.first_push = True
 
+    # get dim of batch size in inputs and outputs
+    def get_batch_dim_in_input_output(self, naive_onnx_model_path):
+        inferred_model = shape_inference.infer_shapes(onnx.load(naive_onnx_model_path))
+        graph = gs.import_onnx(inferred_model)
+        tuning_nodes = [node for node in graph.nodes if node.name == self._template_params._tuning_name] 
+        tuning_node = tuning_nodes[0]
+        batch_dim_in_inputs, batch_dim_in_outputs = {}, {}
+        input_dim_shape_without_bs, output_dim_shape_without_bs = [],[]
+        for idx, inp in enumerate(tuning_node.inputs):
+            one_input_shape_without_bs = []
+            if inp.__class__ == gs.Variable and not inp.is_empty() and inp.shape is not None:
+                for i, dim in enumerate(inp.shape):
+                    if not str(dim).isdigit():
+                        batch_dim_in_inputs[idx] = i 
+                    else:
+                        one_input_shape_without_bs.append(dim)
+            input_dim_shape_without_bs.append(one_input_shape_without_bs)
+        for idx, oup in enumerate(tuning_node.outputs):
+            one_output_shape_without_bs = []
+            if oup.__class__ == gs.Variable and not oup.is_empty() and oup.shape is not None:
+                for i, dim in enumerate(oup.shape):
+                    if not str(dim).isdigit():
+                        batch_dim_in_outputs[idx] = i 
+                    elif dim != 1:
+                        one_output_shape_without_bs.append(dim)
+            output_dim_shape_without_bs.append(one_output_shape_without_bs)
+        if not batch_dim_in_inputs:
+            tensors = graph.tensors()
+            graph.outputs = [
+                tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
+                for inp in tuning_node.inputs if (inp.__class__ == gs.Variable and not inp.is_empty())
+            ] 
+            batch_dim_in_inputs, input_dim_shape_without_bs = self.onnx_runtime_get_input_output_shape(graph)
+        if not batch_dim_in_outputs:
+            tensors = graph.tensors()
+            graph.outputs = [
+                tensors[oup.name].to_variable(dtype=oup.dtype, shape=oup.shape)
+                for oup in tuning_node.outputs
+            ] 
+            batch_dim_in_outputs, output_dim_shape_without_bs = self.onnx_runtime_get_input_output_shape(graph)
+
+        return batch_dim_in_inputs, batch_dim_in_outputs, input_dim_shape_without_bs, output_dim_shape_without_bs
+
+    def onnx_runtime_get_input_output_shape(self, graph): 
+        batch_dim_in_inputs = {}
+        input_dim_shape_without_bs = []
+        submodel = gs.export_onnx(graph)
+        dummy_submodel = 'dummy_submodel.onnx'
+        onnx.save(submodel, dummy_submodel)
+        import onnxruntime as ort
+        import numpy as np
+        session = ort.InferenceSession(dummy_submodel)
+        outname = [output.name for output in session.get_outputs()]
+        dummy_input = {}
+        dummy_input_bak = {}
+        batch = np.random.randint(1, 128)
+        batch_bak = batch + 1
+        for gi in graph.inputs:
+            input_shape = gi.shape
+            dummy_input_shape = []
+            dummy_input_shape_bak = []
+            for dim in input_shape:
+                if not str(dim).isdigit():
+                    dummy_input_shape.append(batch)
+                    dummy_input_shape_bak.append(batch_bak)
+                else:
+                    dummy_input_shape.append(dim) 
+                    dummy_input_shape_bak.append(dim) 
+            dummy_input[gi.name] = (np.random.random(dummy_input_shape)).astype(gi.dtype) 
+            dummy_input_bak[gi.name] = (np.random.random(dummy_input_shape_bak)).astype(gi.dtype) 
+        dummy_output = session.run(outname, dummy_input)
+        dummy_output_bak = session.run(outname, dummy_input_bak)
+        for i, oup in enumerate(dummy_output):
+            one_output_shape_without_bs = []
+            for j, dim in enumerate(oup.shape):
+                if dim != dummy_output_bak[i].shape[j]:
+                    batch_dim_in_inputs[i] = j 
+                else:
+                    one_output_shape_without_bs.append(dim)
+            input_dim_shape_without_bs.append(one_output_shape_without_bs) 
+        os.remove(dummy_submodel)
+        return batch_dim_in_inputs, input_dim_shape_without_bs
+
     def get_dynamic_output_shape(self, plugin_output_shape):
         dy_plugin_output_shape = []
-        for output_shape in plugin_output_shape:
+        for idx, output_shape in enumerate(plugin_output_shape):
             dy_plugin_output_shape.append(
                 self.TensorDims(
-                    nbdims=output_shape.nbdims - 1,
-                    shape=output_shape.shape[1:]
+                    dynamic_dim=self._batch_dim_in_outputs[idx],
+                    nbdims=output_shape.nbdims,
+                    shape=output_shape.shape
                 )
             )
         return dy_plugin_output_shape
@@ -265,7 +359,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         for i in range(len(dy_plugin_shape_size)):
             dynamic_shape_size_type.append(
                 self.Shape(
-                    size=dy_plugin_shape_size[i],
+                    size=int(dy_plugin_shape_size[i]),
                     dtype=onnx_python_type[i]
                 )
             )
@@ -286,16 +380,18 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         duplicate_list = set()
         _dy_plugin_input_size = self.get_dynamic_shape_size(plugin_template._plugin_input_shape)
         _dy_plugin_output_size = self.get_dynamic_shape_size(plugin_template._plugin_output_shape)
+
         for kernel in plugin_template._plugin_kernels_params:
             func_name = kernel.name
-            print(kernel.enqueue_params)
             func_name_with_bs = func_name + '_bs' + str(batch_size)
             kernel.name = func_name_with_bs
             if kernel.name in duplicate_list:
                 continue
             duplicate_list.add(kernel.name)
-            plugin_template._plugin_kernels_body = plugin_template._plugin_kernels_body.replace(func_name, func_name_with_bs)
-            print("_plugin_tensor_input_index: ", self._plugin_tensor_input_index)
+            plugin_template._plugin_kernels_body = plugin_template._plugin_kernels_body.replace(func_name + '(', func_name_with_bs + '(')
+            
+        for kernel in plugin_template._plugin_kernels_params:
+            #print("_plugin_tensor_input_index: ", self._plugin_tensor_input_index)
             assert(len(self._plugin_tensor_input_index) > 0, "incorrect _plugin_tensor_input_index")
             if not self.first_push:            
                 for i in range(len(_dy_plugin_input_size)):
@@ -304,7 +400,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
                 for i in range(len(_dy_plugin_output_size)):
                     kernel.enqueue_params = kernel.enqueue_params.replace("outputs[{}]".format(i), "(workspace + offset_output_{})".format(i))
         self.first_push = False
-
+        
         kernels_body = plugin_template._plugin_kernels_body.split('extern "C"')
         real_kernels_body = []
         real_kernels_body.append(kernels_body[0])
@@ -315,11 +411,12 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         plugin_template._plugin_kernels_body = '\n'.join(real_kernels_body)
 
         self._plugin_workspace_size = max(self._plugin_workspace_size, plugin_template._plugin_workspace_size)
-        
+        self._plugin_total_workspace_size = max(self._plugin_total_workspace_size, plugin_template._plugin_total_workspace_size)
         _dy_plugin_input_size = self.get_dynamic_shape_size(plugin_template._plugin_input_shape)
         _dy_plugin_output_size = self.get_dynamic_shape_size(plugin_template._plugin_output_shape)
         self._dy_plugin_input_size_type = self.get_dynamic_shape_size_type(_dy_plugin_input_size, self._onnx_input_python_type)
         self._dy_plugin_output_size_type = self.get_dynamic_shape_size_type(_dy_plugin_output_size, self._onnx_output_python_type)
+        #self._dy_plugin_output_size_type = self.get_dynamic_shape_size_type(plugin_template._output_workspace_size, self._onnx_output_python_type)
         self._dy_plugin_input_size_type_without_bs = self.get_dynamic_shape_size_type_without_bs(self._dy_plugin_input_size_type, batch_size)
         self._dy_plugin_output_size_type_without_bs = self.get_dynamic_shape_size_type_without_bs(self._dy_plugin_output_size_type, batch_size)
 
@@ -346,7 +443,10 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         output_text = template.render(
             plugin_name=self._plugin_name,
             plugin_tensor_input_index=self._plugin_tensor_input_index,
-            cases=self._plugin_template_list
+            cases=self._plugin_template_list,
+            plugin_input_dy_dim=self._batch_dim_in_inputs[self._plugin_tensor_input_index[0]],
+            output_dim_shape_without_bs=self._output_dim_shape_without_bs,
+            input_dim_shape_without_bs=self._input_dim_shape_without_bs
         )
         with open("./trt_plugin/src/{}.cu".format(self._plugin_name), "w") as f:
             f.write(output_text)    
@@ -362,7 +462,8 @@ class DynamicBatchPluginTemplate(PluginTemplate):
             plugin_tensor_format=self._plugin_tensor_format,
             plugin_input_size_type=self._dy_plugin_input_size_type,
             plugin_output_size_type=self._dy_plugin_output_size_type,
-            plugin_tensor_input_index=self._plugin_tensor_input_index
+            plugin_tensor_input_index=self._plugin_tensor_input_index,
+            plugin_input_dy_dim=self._batch_dim_in_inputs[self._plugin_tensor_input_index[0]]
         )
         with open("./trt_plugin/src/{}.h".format(self._plugin_name), "w") as f:
             f.write(output_text)

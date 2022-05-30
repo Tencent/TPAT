@@ -195,6 +195,8 @@ class PluginTemplateParams(object):
         self._allocate_global_memory = self.parse_device_allocate_global_memory(
             device_allocate_global_memory
         )
+        self._input_workspace_size = self._allocate_size[0:self._nums_input]
+        self._output_workspace_size = self._allocate_size[-self._nums_output:]
 
     def infer_for_output_shape(self):
         """
@@ -231,13 +233,14 @@ class PluginTemplateParams(object):
         graph.cleanup()
         self._onnx_output_shape = self.dummy_onnx_ort_output_shape(graph)
 
-        # graph.outputs = [
-        #     tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
-        #     for k, inp in enumerate(tuning_node.inputs) if (inp.__class__ == gs.Variable and not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))
-        # ]
+        #graph.outputs = [
+        #    tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
+        #    for k, inp in enumerate(tuning_node.inputs) if (inp.__class__ == gs.Variable and not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))
+        #]
+        #print(graph.outputs)
         graph.outputs = [
             tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
-            for inp in tuning_node.inputs if (inp.__class__ == gs.Variable and 'inserted_const_for_' not in inp.name)
+            for inp in tuning_node.inputs if (inp.__class__ == gs.Variable and 'inserted_const_for_' not in inp.name and not inp.is_empty())
         ]
         ### for debug
         # graph.outputs = []
@@ -316,7 +319,6 @@ class PluginTemplateParams(object):
             duplicate_allocate[idx] = max(
                 int(self._allocate_size[i]), int(duplicate_allocate[idx])
             )
-
         for i in range(len(self._allocate_size)):
             idx = int(self._storage_id[i])
             if idx in input_slot_dict.keys():
@@ -493,3 +495,18 @@ class PluginTemplateParams(object):
     @property
     def onnx_output_python_type(self):
         return self._onnx_output_python_type
+
+    @property
+    def input_workspace_size(self):
+        return self._input_workspace_size
+
+    @property
+    def output_workspace_size(self):
+        return self._output_workspace_size
+   
+    @property
+    def total_workspace_size(self):
+        allocate_size = 0
+        for size in self._allocate_size:
+            allocate_size += int(size) 
+        return allocate_size 
