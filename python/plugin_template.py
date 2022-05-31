@@ -274,7 +274,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
                 for i, dim in enumerate(oup.shape):
                     if not str(dim).isdigit():
                         batch_dim_in_outputs[idx] = i 
-                    elif dim != 1:
+                    else:
                         one_output_shape_without_bs.append(dim)
             output_dim_shape_without_bs.append(one_output_shape_without_bs)
         if not batch_dim_in_inputs:

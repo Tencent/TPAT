@@ -147,8 +147,8 @@ int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const 
       {%- for outputShape in case.dy_plugin_output_size_type_without_bs %}
       {%- if loop.first %}
       {% if ( plugin_input_dy_dim == 1) %}
-      transpose_3D_xyz2yxz(tmp, (float*)(workspace + offset_output_{{loop.index0}}),  {{output_dim_shape_without_bs[loop.index0][0]}}, {{case.batch_size}}, {{output_dim_shape_without_bs[loop.index0][1]}});
-      transpose_3D_xyz2yxz((float*)(outputs[{{loop.index0}}]), (tmp), bs, {{output_dim_shape_without_bs[loop.index0][0]}}, {{output_dim_shape_without_bs[loop.index0][1]}});
+      transpose_3D_xyz2yxz(tmp, (float*)(workspace + offset_output_{{loop.index0}}),  {{output_dim_shape_without_bs[loop.index0][0]}}, {{case.batch_size}}, {{output_dim_shape_without_bs[loop.index0][2]}});
+      transpose_3D_xyz2yxz((float*)(outputs[{{loop.index0}}]), (tmp), bs, {{output_dim_shape_without_bs[loop.index0][0]}}, {{output_dim_shape_without_bs[loop.index0][2]}});
       {% else %}
       checkCudaErrors(cudaMemcpyAsync((void *)(outputs[{{loop.index0}}]), (workspace + offset_output_{{loop.index0}}), bs * {{outputShape.size}} * sizeof({{ outputShape.dtype }}), cudaMemcpyDeviceToDevice));
       {% endif %}
