@@ -249,6 +249,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         self._dy_plugin_output_shape = self.get_dynamic_output_shape(self._plugin_output_shape)
         self._dy_plugin_output_size_type = list()
         self._dy_plugin_input_size_type = list()
+        self._dy_plugin_output_workspace_size_type = list()
         self.first_push = True
 
     # get dim of batch size in inputs and outputs
@@ -416,7 +417,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         _dy_plugin_output_size = self.get_dynamic_shape_size(plugin_template._plugin_output_shape)
         self._dy_plugin_input_size_type = self.get_dynamic_shape_size_type(_dy_plugin_input_size, self._onnx_input_python_type)
         self._dy_plugin_output_size_type = self.get_dynamic_shape_size_type(_dy_plugin_output_size, self._onnx_output_python_type)
-        #self._dy_plugin_output_size_type = self.get_dynamic_shape_size_type(plugin_template._output_workspace_size, self._onnx_output_python_type)
+        self._dy_plugin_output_workspace_size_type = self.get_dynamic_shape_size_type(plugin_template._output_workspace_size, self._onnx_output_python_type)
         self._dy_plugin_input_size_type_without_bs = self.get_dynamic_shape_size_type_without_bs(self._dy_plugin_input_size_type, batch_size)
         self._dy_plugin_output_size_type_without_bs = self.get_dynamic_shape_size_type_without_bs(self._dy_plugin_output_size_type, batch_size)
 
@@ -462,6 +463,7 @@ class DynamicBatchPluginTemplate(PluginTemplate):
             plugin_tensor_format=self._plugin_tensor_format,
             plugin_input_size_type=self._dy_plugin_input_size_type,
             plugin_output_size_type=self._dy_plugin_output_size_type,
+            plugin_output_workspace_size_type=self._dy_plugin_output_workspace_size_type,
             plugin_tensor_input_index=self._plugin_tensor_input_index,
             plugin_input_dy_dim=self._batch_dim_in_inputs[self._plugin_tensor_input_index[0]]
         )

@@ -86,7 +86,7 @@ public:
         {%- for input in plugin_input_size_type %}
         workspace_size += {{input.size}} * sizeof({{input.dtype}});
         {%- endfor %}
-        {%- for output in plugin_output_size_type %}
+        {%- for output in plugin_output_workspace_size_type %}
         workspace_size += {{output.size}} * sizeof({{output.dtype}});
         {%- endfor %}
         return workspace_size;
