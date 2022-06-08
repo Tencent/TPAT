@@ -15,21 +15,16 @@ using namespace plugin;
 #define BLOCK_ROWS 8
 #define BLOCK_COLS 4
 
-__global__ void transpose_share_mem(float *odata, float *idata, int n1, int n2, int n3){
-    int x = threadIdx.x + blockDim.x * blockIdx.x;
-    int y = threadIdx.y + blockDim.y * blockIdx.y;
-    int z = threadIdx.z + blockDim.z * blockIdx.z;
-    __shared__ float block[TILE_DIM][BLOCK_ROWS + 1];
-    if((x < n1) && (y < n2) && (z < n3)){
-        int in_index = x * n2 * n3 + y * n3 + z;
-        block[threadIdx.y][threadIdx.x] = idata[in_index];
+__global__ void transpose_opt(float* odata, float* idata, int n1, int n2, int n3){
+    const int blockIdx_row = blockIdx.x;
+    const int blockIdx_col = blockIdx.y;
+    const int row = blockIdx_row * n2 + blockIdx_col;
+    for(int col = threadIdx.x ; col < n3; col += blockDim.x){
+        const int target_idx = blockIdx_col * n1 * n3 + blockIdx_row * n3 + col;
+        const int src_idx = row * n3 + col;
+        odata[target_idx] = __ldg(&idata[src_idx]);
     }
-    __syncthreads();
-    if((x < n1) && (y < n2) && (z < n3)){
-        int out_index = y * n1 * n3 + x * n1 + z;
-        odata[out_index] = block[threadIdx.y][threadIdx.x];
-    }
-}
+} 
 
 __global__ void transpose_naive(float *odata, float *idata, int n1, int n2, int n3){
    int i = threadIdx.x + blockDim.x * blockIdx.x;
@@ -43,10 +38,12 @@ __global__ void transpose_naive(float *odata, float *idata, int n1, int n2, int 
 }
 
 void transpose_3D_xyz2yxz(float *odata, float *idata, int n1, int n2, int n3){
-    dim3 dimGrid = dim3((int)ceil((float)n1 / TILE_DIM), (int)ceil((float)n2 / BLOCK_ROWS), (int)ceil((float)n3 / BLOCK_COLS));
-    dim3 dimBlock = dim3(TILE_DIM, BLOCK_ROWS, BLOCK_COLS);
-    //transpose_share_mem<<<dimGrid, dimBlock>>>(odata, idata, n1, n2, n3);
-    transpose_naive<<<dimGrid, dimBlock>>>(odata, idata, n1, n2, n3);
+    //dim3 dimGrid = dim3((int)ceil((float)n1 / TILE_DIM), (int)ceil((float)n2 / BLOCK_ROWS), (int)ceil((float)n3 / BLOCK_COLS));
+    //dim3 dimBlock = dim3(TILE_DIM, BLOCK_ROWS, BLOCK_COLS);
+    //transpose_naive<<<dimGrid, dimBlock>>>(odata, idata, n1, n2, n3);
+    dim3 dimGrid = dim3(n1, n2);
+    dim3 dimBlock = dim3(min(n3, 512));
+    transpose_opt<<<dimGrid, dimBlock>>>(odata, idata, n1, n2, n3);
 }
 
 
