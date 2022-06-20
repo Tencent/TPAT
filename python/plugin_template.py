@@ -260,12 +260,14 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         tuning_node = tuning_nodes[0]
         batch_dim_in_inputs, batch_dim_in_outputs = {}, {}
         input_dim_shape_without_bs, output_dim_shape_without_bs = [],[]
+        input_dynamic_shape_num , output_dynamic_shape_num = 0, 0
         for idx, inp in enumerate(tuning_node.inputs):
             one_input_shape_without_bs = []
             if inp.__class__ == gs.Variable and not inp.is_empty() and inp.shape is not None:
                 for i, dim in enumerate(inp.shape):
                     if not str(dim).isdigit():
                         batch_dim_in_inputs[idx] = i 
+                        input_dynamic_shape_num += 1
                     else:
                         one_input_shape_without_bs.append(dim)
             input_dim_shape_without_bs.append(one_input_shape_without_bs)
@@ -275,17 +277,18 @@ class DynamicBatchPluginTemplate(PluginTemplate):
                 for i, dim in enumerate(oup.shape):
                     if not str(dim).isdigit():
                         batch_dim_in_outputs[idx] = i 
+                        output_dynamic_shape_num += 1
                     else:
                         one_output_shape_without_bs.append(dim)
             output_dim_shape_without_bs.append(one_output_shape_without_bs)
-        if not batch_dim_in_inputs:
+        if not batch_dim_in_inputs or input_dynamic_shape_num > 1:
             tensors = graph.tensors()
             graph.outputs = [
                 tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
                 for inp in tuning_node.inputs if (inp.__class__ == gs.Variable and not inp.is_empty())
             ] 
             batch_dim_in_inputs, input_dim_shape_without_bs = self.onnx_runtime_get_input_output_shape(graph)
-        if not batch_dim_in_outputs:
+        if not batch_dim_in_outputs or output_dynamic_shape_num > 1:
             tensors = graph.tensors()
             graph.outputs = [
                 tensors[oup.name].to_variable(dtype=oup.dtype, shape=oup.shape)

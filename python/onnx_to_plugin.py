@@ -66,10 +66,10 @@ def generate_plugin_library(input_model_path, nodes, plugin_name_dict=None, dyna
             template_params_list = []
             for i, explicit_bs_input_model_path in enumerate(input_model_path):
                 cuda_kernel = CudaKernel(explicit_bs_input_model_path, node, plugin_name)
-                resable_plugin = cuda_kernel.check_existing_plugins(
+                reusable_plugin = cuda_kernel.check_existing_plugins(
                     trt_plugin_mapping_onnx_node
                 )
-                if resable_plugin is not None:
+                if reusable_plugin is not None:
                     print(
                         "[Dynamic Batch]Find existing plugin {} which could be reused for node {}".format(
                             reusable_plugin, cuda_kernel.tuning_name
