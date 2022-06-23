@@ -159,7 +159,8 @@ class CudaKernel(object):
         #    computed_tensor_shapes.append(tuning_node_inputs[i].shape)
         #for i in range(len(tuning_node_outputs)):
         #    computed_tensor_shapes.append(tuning_node_outputs[i].shape)
-        session = ort.InferenceSession(half_model_path)
+        EP_list = ['CPUExecutionProvider', 'CUDAExecutionProvider']
+        session = ort.InferenceSession(half_model_path, providers=EP_list)
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         for gi in graph.inputs:

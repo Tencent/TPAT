@@ -259,7 +259,8 @@ class PluginTemplateParams(object):
         submodel = gs.export_onnx(graph)
         dummy_model = "dummy_model.onnx"
         onnx.save(submodel, dummy_model)
-        session = ort.InferenceSession(dummy_model)
+        EP_list = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        session = ort.InferenceSession(dummy_model, providers=EP_list)
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         for gi in graph.inputs:

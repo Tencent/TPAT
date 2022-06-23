@@ -306,7 +306,8 @@ class DynamicBatchPluginTemplate(PluginTemplate):
         onnx.save(submodel, dummy_submodel)
         import onnxruntime as ort
         import numpy as np
-        session = ort.InferenceSession(dummy_submodel)
+        EP_list = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        session = ort.InferenceSession(dummy_submodel, providers=EP_list)
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         dummy_input_bak = {}

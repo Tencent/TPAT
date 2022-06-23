@@ -66,22 +66,22 @@ def generate_plugin_library(input_model_path, nodes, plugin_name_dict=None, dyna
             template_params_list = []
             for i, explicit_bs_input_model_path in enumerate(input_model_path):
                 cuda_kernel = CudaKernel(explicit_bs_input_model_path, node, plugin_name)
-                reusable_plugin = cuda_kernel.check_existing_plugins(
+                resable_plugin = cuda_kernel.check_existing_plugins(
                     trt_plugin_mapping_onnx_node
                 )
-                if reusable_plugin is not None:
-                    print(
-                        "[Dynamic Batch]Find existing plugin {} which could be reused for node {}".format(
-                            reusable_plugin, cuda_kernel.tuning_name
-                        )
-                    )
-                    onnx_name_mapping_trt_plugin[cuda_kernel.tuning_name] = reusable_plugin
-                    continue
-                print(
-                    "[Dynamic Batch] Couldn't find reusable plugin for node {}\nStart auto-tuning!".format(
-                        cuda_kernel.tuning_name
-                    )
-                )
+                # if resable_plugin is not None:
+                #     print(
+                #         "[Dynamic Batch]Find existing plugin {} which could be reused for node {}".format(
+                #             reusable_plugin, cuda_kernel.tuning_name
+                #         )
+                #     )
+                #     onnx_name_mapping_trt_plugin[cuda_kernel.tuning_name] = reusable_plugin
+                #     continue
+                # print(
+                #     "[Dynamic Batch] Couldn't find reusable plugin for node {}\nStart auto-tuning!".format(
+                #         cuda_kernel.tuning_name
+                #     )
+                # )
                 cuda_kernel.run()
                 template_params_list.append(PluginTemplateParams(
                     cuda_kernel, explicit_bs_input_model_path, tuning_name
