@@ -47,6 +47,11 @@ class OnnxModified(object):
                 node.op = onnx_layer_name_mapping_trt_plugin_name[node.name]
                 # print("ONNX node for modifying: {}".format(node))
                 for i, inp in enumerate(node.inputs):
+                    if inp.is_empty():
+                        node.inputs.remove(inp)
+                        print("remove empty input tensor: ", node)
+                        self._graph.cleanup()
+                        continue
                     if onnx_original_tensor_type[inp.name] in onnx_type_mapping:
                         cast_node = gs.Node(
                             op="Cast",
@@ -118,7 +123,7 @@ class OnnxModified(object):
             for inp in inferred_tuning_node.inputs:
                 if inp.__class__ == gs.Constant:
                     onnx_original_tensor_type[inp.name] = inp.dtype.__name__
-                else:
+                elif not inp.is_empty():
                     onnx_original_tensor_type[inp.name] = inp.dtype.name
             [
                 onnx_original_tensor_type.update({oup.name: oup.dtype.name})

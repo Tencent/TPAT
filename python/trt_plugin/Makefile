@@ -14,8 +14,9 @@
 # limitations under the License.
 #
 
-CUDA_PATH   = /usr/local/cuda/
-TRT_LIB_PATH = /root/workspace/download/TensorRT-7.2.2.3/lib
+CUDA_PATH   = /usr/local/cuda-11.0/
+#TRT_LIB_PATH = /root/workspace/download/TensorRT-7.2.2.3/lib
+TRT_LIB_PATH = /root/workspace/download/ft_local/TensorRT-8.0.0.3/lib
 
 CUDA_INC_PATH = $(CUDA_PATH)/include
 CUDA_COM_PATH = $(CUDA_PATH)/samples/common/inc

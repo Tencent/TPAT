@@ -59,17 +59,11 @@ public:
     }
     nvinfer1::DimsExprs getOutputDimensions(int outputIndex, const nvinfer1::DimsExprs* inputs, int nbInputs, nvinfer1::IExprBuilder& exprBuilder) noexcept override {
         //std::cout << __FUNCTION__ << std::endl;
-        {% for tensor_dims in plugin_output_shape -%}
-            if (outputIndex == {{ loop.index0 }}){
+        {% for tensor_dims in plugin_output_shape %}if (outputIndex == {{ loop.index0 }}){
             nvinfer1::DimsExprs output_shape;
-            output_shape.nbDims = {{ tensor_dims.nbdims }};
-            {%- for s in tensor_dims.shape %}
-            {%- if loop.index0 == tensor_dims.dynamic_dim %}
-            output_shape.d[{{loop.index0}}] = inputs[{{plugin_tensor_input_index[0]}}].d[{{plugin_input_dy_dim}}];
-            {%- else %}
-            output_shape.d[{{loop.index0}}] = exprBuilder.constant({{s}});
-            {%- endif %}
-            {%- endfor %}
+            output_shape.nbDims = {{tensor_dims.nbdims}};
+            {% for s in tensor_dims.shape %}output_shape.d[{{loop.index0}}] = exprBuilder.constant({{s}});
+            {% endfor %}
             return output_shape;
         }
         {% endfor %}
@@ -82,14 +76,7 @@ public:
         {% endfor %}
     }
     size_t getWorkspaceSize(const nvinfer1::PluginTensorDesc* inputs, int nbInputs, const nvinfer1::PluginTensorDesc* outputs, int nbOutputs) const noexcept override{
-        int workspace_size = {{plugin_workspace_size}};
-        {%- for input in plugin_input_size_type %}
-        workspace_size += {{input.size}} * sizeof({{input.dtype}});
-        {%- endfor %}
-        {%- for output in plugin_output_workspace_size_type %}
-        workspace_size += {{output.size}} * sizeof({{output.dtype}});
-        {%- endfor %}
-        return workspace_size;
+        return {{plugin_workspace_size}};
     }
     int enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const nvinfer1::PluginTensorDesc* outputDesc, const void* const* inputs, void* const* outputs, void* workspace, cudaStream_t stream) noexcept override;
 

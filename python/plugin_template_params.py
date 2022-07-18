@@ -48,13 +48,19 @@ class PluginTemplateParams(object):
         self._cuda_func_order = []
         self._tvm_constant = {}
         self._tvm_workspace_constant = {}
+        self._onnx_input_shape = []
         self._onnx_output_shape = []
+        self._onnx_weight_input_index = []
+        self._onnx_tensor_input_index = []
         self._onnx_tensor_type = []
+        self._onnx_input_python_type = []
+        self._onnx_output_python_type = []
         self._storage_id = []
         self._allocate_global_memory = {}
         self._plugin_config = None
 
         self.infer_for_output_shape()
+        self.input_weight_and_tensor_index()
         self.parse()
         self.align_onnx_and_tvm_input(self._one_node_model)
         self.match_address_for_eid()
@@ -189,6 +195,8 @@ class PluginTemplateParams(object):
         self._allocate_global_memory = self.parse_device_allocate_global_memory(
             device_allocate_global_memory
         )
+        self._input_workspace_size = self._allocate_size[0:self._nums_input]
+        self._output_workspace_size = self._allocate_size[-self._nums_output:]
 
     def infer_for_output_shape(self):
         """
@@ -204,15 +212,18 @@ class PluginTemplateParams(object):
         tuning_node = tuning_nodes[0]
         for inp in tuning_node.inputs:
             if inp.__class__ == gs.Constant:
+                self._onnx_input_python_type.append(tvm_to_c_type_mapping[inp.dtype.__name__])
                 self._onnx_tensor_type.append(
                     python_to_trt_type_mapping[inp.dtype.__name__]
                 )
-            else:
+            elif not inp.is_empty():
+                self._onnx_input_python_type.append(tvm_to_c_type_mapping[inp.dtype.name])
                 self._onnx_tensor_type.append(
                     python_to_trt_type_mapping[inp.dtype.name]
                 )
 
         for oup in tuning_node.outputs:
+            self._onnx_output_python_type.append(tvm_to_c_type_mapping[oup.dtype.name])
             self._onnx_tensor_type.append(python_to_trt_type_mapping[oup.dtype.name])
 
         graph.outputs = [
@@ -220,18 +231,58 @@ class PluginTemplateParams(object):
             for oup in tuning_node.outputs
         ]
         graph.cleanup()
+        self._onnx_output_shape = self.dummy_onnx_ort_output_shape(graph)
+
+        #graph.outputs = [
+        #    tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
+        #    for k, inp in enumerate(tuning_node.inputs) if (inp.__class__ == gs.Variable and not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))
+        #]
+        #print(graph.outputs)
+        graph.outputs = [
+            tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
+            for inp in tuning_node.inputs if (inp.__class__ == gs.Variable and 'inserted_const_for_' not in inp.name and not inp.is_empty())
+        ]
+        ### for debug
+        # graph.outputs = []
+        # for k, inp in enumerate((tuning_node.inputs)):
+        #     if inp.__class__ == gs.Variable:
+        #         if not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"): 
+        #             graph.outputs.append(tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape))
+        #         else:
+        #             print("tuning_node inputs: ", tuning_node.i(k, 0))
+        ### for debug
+        graph.cleanup()
+        self._onnx_input_shape = self.dummy_onnx_ort_output_shape(graph)
+
+    def dummy_onnx_ort_output_shape(self, graph):
+        onnx_output_shape = []
         submodel = gs.export_onnx(graph)
         dummy_model = "dummy_model.onnx"
         onnx.save(submodel, dummy_model)
-        session = ort.InferenceSession(dummy_model)
+        EP_list = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        session = ort.InferenceSession(dummy_model, providers=EP_list)
         outname = [output.name for output in session.get_outputs()]
         dummy_input = {}
         for gi in graph.inputs:
             dummy_input[gi.name] = (np.random.random(gi.shape) + 1).astype(gi.dtype)
         dummy_output = session.run(outname, dummy_input)
         for i in range(len(dummy_output)):
-            self._onnx_output_shape.append(dummy_output[i].shape)
+            onnx_output_shape.append(dummy_output[i].shape)
         os.remove(dummy_model)
+        return onnx_output_shape
+
+    def input_weight_and_tensor_index(self):
+        """
+        calculate the index of weight input and tensor input
+        """
+        graph = gs.import_onnx(onnx.load(self._onnx_path))
+        tuning_nodes = [node for node in graph.nodes if node.name == self._tuning_name]
+        assert len(tuning_nodes) != 0
+        tuning_node = tuning_nodes[0]
+        self._onnx_tensor_input_index = [k for k, inp in enumerate(tuning_node.inputs) 
+            if (inp.__class__ == gs.Variable and not (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))]
+        self._onnx_weight_input_index = [k for k, inp in enumerate(tuning_node.inputs) 
+            if (inp.__class__ == gs.Constant or (len(inp.inputs) == 1 and tuning_node.i(k, 0).op == "Constant"))]
 
     def align_onnx_and_tvm_input(self, onnx_path):
         """
@@ -269,7 +320,6 @@ class PluginTemplateParams(object):
             duplicate_allocate[idx] = max(
                 int(self._allocate_size[i]), int(duplicate_allocate[idx])
             )
-
         for i in range(len(self._allocate_size)):
             idx = int(self._storage_id[i])
             if idx in input_slot_dict.keys():
@@ -376,6 +426,10 @@ class PluginTemplateParams(object):
         self._plugin_config = output_json
 
     @property
+    def host_func_order(self):
+        return self._tvm_func_order
+
+    @property
     def kernel_order(self):
         return self._cuda_func_order
 
@@ -400,6 +454,18 @@ class PluginTemplateParams(object):
         return self._onnx_output_shape
 
     @property
+    def input_shape(self):
+        return self._onnx_input_shape
+
+    @property
+    def onnx_weight_input_index(self):
+        return self._onnx_weight_input_index
+
+    @property
+    def onnx_tensor_input_index(self):
+        return self._onnx_tensor_input_index
+
+    @property
     def tensor_type(self):
         return self._onnx_tensor_type
 
@@ -422,3 +488,26 @@ class PluginTemplateParams(object):
     @property
     def storage_id(self):
         return self._storage_id
+
+    @property
+    def onnx_input_python_type(self):
+        return self._onnx_input_python_type
+
+    @property
+    def onnx_output_python_type(self):
+        return self._onnx_output_python_type
+
+    @property
+    def input_workspace_size(self):
+        return self._input_workspace_size
+
+    @property
+    def output_workspace_size(self):
+        return self._output_workspace_size
+   
+    @property
+    def total_workspace_size(self):
+        allocate_size = 0
+        for size in self._allocate_size:
+            allocate_size += int(size) 
+        return allocate_size 

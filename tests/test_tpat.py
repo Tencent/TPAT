@@ -243,6 +243,7 @@ def verify_with_ort_with_trt(
     opt_level=1,
     np_result=None,
     use_vm=False,
+    layout=0,
 ):
     if opset is not None:
         model.opset_import[0].version = opset
@@ -254,7 +255,7 @@ def verify_with_ort_with_trt(
     in_data = convert_to_list(inputs)
     ops_name = [op_name]
     trt_plugin_name = onnx2plugin(
-        INPUT_MODEL_FILE, OUTPUT_MODEL_FILE, node_names=ops_name
+        INPUT_MODEL_FILE, OUTPUT_MODEL_FILE, node_names=ops_name, dynamic_bs=False, min_bs=1, max_bs=256, opt_bs=128
     )
     for plugin_name in trt_plugin_name:
         ctypes.cdll.LoadLibrary("./trt_plugin/lib/{}.so".format(plugin_name))
@@ -295,6 +296,7 @@ def verify_with_ort_with_trt(
     if len(trt_result) == 1:
         ret = compare_tf_trt_result(ort_result, trt_result)
     else:
+        #ret &= compare_tf_trt_result(ort_result[0], trt_result[0])
         for i in range(len(trt_result)):
             ret &= compare_tf_trt_result(ort_result[i], trt_result[i])
     assert ret, "result check False"
@@ -1642,6 +1644,7 @@ def verify_rnn(
     use_peep=False,
     linear_before_reset=False,
     op_name=None,
+    layout=0,
 ):
     if rnn_type == "LSTM":
         multiplier = 4
@@ -1649,9 +1652,11 @@ def verify_rnn(
         multiplier = 3
     else:
         raise NotImplementedError("%s RNNs not yet supported." % rnn_type)
-    x_np = np.random.uniform(size=(seq_length, batch_size, input_size)).astype(
+
+    x_np_0 = np.random.uniform(size=(seq_length, batch_size, input_size)).astype(
         "float32"
     )
+    x_np_1 = np.transpose(x_np_0, [1, 0, 2]) 
     w_np = np.random.uniform(size=(1, multiplier * hidden_size, input_size)).astype(
         "float32"
     )
@@ -1659,12 +1664,20 @@ def verify_rnn(
         "float32"
     )
     input_names = ["X", "W", "R"]
-    input_tensors = [
-        helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np.shape)),
+    input_tensors_1 = [
+        helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np_1.shape)),
         helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_np.shape)),
         helper.make_tensor_value_info("R", TensorProto.FLOAT, list(r_np.shape)),
     ]
-    input_values = [x_np, w_np, r_np]
+    input_tensors_0 = [
+        helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np_0.shape)),
+        helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_np.shape)),
+        helper.make_tensor_value_info("R", TensorProto.FLOAT, list(r_np.shape)),
+    ]
+
+
+    input_values_0 = [x_np_0, w_np, r_np]
+    input_values_1 = [x_np_1, w_np, r_np]
 
     if use_bias:
         b_np = np.random.uniform(size=(1, multiplier * 2 * hidden_size)).astype(
@@ -1724,52 +1737,83 @@ def verify_rnn(
         input_values.append(p_np)
 
     #NOCC:invalid-name(其他:onnx example)
-    Y_shape = [seq_length, 1, batch_size, hidden_size] 
+    Y_shape_0 = [seq_length, 1, batch_size, hidden_size] 
+    Y_h_shape_0 = [1, batch_size, hidden_size] 
+    Y_shape_1 = [batch_size, seq_length, 1, hidden_size]
+    Y_h_shape_1 = [batch_size, 1, hidden_size]
+    #Y_shape = [seq_length, 1, batch_size, hidden_size] 
     #NOCC:invalid-name(其他:onnx example)
-    Y_h_shape = [1, batch_size, hidden_size] 
+    #Y_h_shape = [1, batch_size, hidden_size] 
     outputs = ["Y", "Y_h"]
-    graph_outputs = [
-        helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape)),
-        helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, list(Y_h_shape)),
+    graph_outputs_0 = [
+        helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape_0)),
+        helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, list(Y_h_shape_0)),
     ]
-    output_shapes = [Y_shape, Y_h_shape]
+    output_shapes_0 = [Y_shape_0, Y_h_shape_0]
+    graph_outputs_1 = [
+        helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape_1)),
+        helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, list(Y_h_shape_1)),
+    ]
+    output_shapes_1 = [Y_shape_1, Y_h_shape_1]
 
     if rnn_type == "LSTM":
         #NOCC:invalid-name(其他:onnx example)
-        Y_c_shape = [1, batch_size, hidden_size] 
+        Y_c_shape_0 = [1, batch_size, hidden_size] 
+        Y_c_shape_1 = [batch_size, 1, hidden_size]
         outputs.append("Y_c")
-        graph_outputs.append(
-            helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, list(Y_c_shape))
+        graph_outputs_0.append(
+            helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, list(Y_c_shape_0))
         )
-        output_shapes.append(Y_c_shape)
+        graph_outputs_1.append(
+            helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, list(Y_c_shape_1))
+        )
+        output_shapes_0.append(Y_c_shape_0)
+        output_shapes_1.append(Y_c_shape_1)
 
-    rnn_node = helper.make_node(
+    rnn_node_0 = helper.make_node(
         rnn_type,
         inputs=input_names,
         outputs=outputs,
         hidden_size=hidden_size,
+        layout=0,
+        name=op_name,
+    )
+    rnn_node_1 = helper.make_node(
+        rnn_type,
+        inputs=input_names,
+        outputs=outputs,
+        hidden_size=hidden_size,
+        layout=1,
         name=op_name,
     )
     if activations is not None:
         activations_attr = helper.make_attribute("activations", activations)
-        rnn_node.attribute.append(activations_attr)
+        rnn_node_0.attribute.append(activations_attr)
+        rnn_node_1.attribute.append(activations_attr)
     if alphas is not None:
         alphas_attr = helper.make_attribute("activation_alpha", alphas)
-        rnn_node.attribute.append(alphas_attr)
+        rnn_node_0.attribute.append(alphas_attr)
+        rnn_node_1.attribute.append(alphas_attr)
     if betas is not None:
         betas_attr = helper.make_attribute("activation_beta", betas)
-        rnn_node.attribute.append(betas_attr)
+        rnn_node_0.attribute.append(betas_attr)
+        rnn_node_1.attribute.append(betas_attr)
     if linear_before_reset and rnn_type == "GRU":
         lbr_attr = helper.make_attribute("linear_before_reset", 1)
         rnn_node.attribute.append(lbr_attr)
 
-    graph = helper.make_graph(
-        [rnn_node], "rnn_test", inputs=input_tensors, outputs=graph_outputs
+    graph_0 = helper.make_graph(
+        [rnn_node_0], "rnn_test", inputs=input_tensors_0, outputs=graph_outputs_0
+    )
+    graph_1 = helper.make_graph(
+        [rnn_node_1], "rnn_test", inputs=input_tensors_1, outputs=graph_outputs_1
     )
 
-    model = helper.make_model(graph, producer_name="rnn_test")
 
-    verify_with_ort_with_trt(model, input_values, op_name)
+    model_0 = helper.make_model(graph_0, producer_name="rnn_test")
+    model_1 = helper.make_model(graph_1, producer_name="rnn_test")
+
+    verify_with_ort_with_trt(model_0, input_values_0, model_1, input_values_1, op_name, layout=layout)
 
 
 def test_gather():
@@ -3262,6 +3306,7 @@ def test_lstm():
         activations=["HardSigmoid", "Tanh", "Tanh"],
         rnn_type="LSTM",
         op_name="test_lstm_without_bias",
+        layout=1,
     )
     # # Multiple parameterized activations.
     # verify_rnn(
@@ -3857,87 +3902,87 @@ def test_scatternd():
 
 if __name__ == "__main__":
     # pytest.main([__file__])
-    test_abs()
-    test_acos()
-    test_and()
-    test_add()
-    test_argmax()
-    test_argmin()
-    test_asin()
-    test_asinh()
-    test_atan()
-    test_atanh()
-    test_averagepool()
-    test_batchnormalization()
-    test_ceil()
-    test_celu()
-    test_clip()
-    test_concat()
-    test_conv()
-    test_convtranspose()
-    test_cos()
-    test_cosh()
-    test_depthtospace()
-    test_div()
-    # ------100 limited library
-    test_einsum()
-    test_elu()
-    test_erf()
-    test_exp()
-    test_eyelike()
-    test_floor()
-    test_gather()
-    test_gatherelement()
-    test_gathernd()
-    test_gemm()
-    test_globalaveragepool()
-    test_globalmaxpool()
-    test_hardsigmoid()
-    test_hardswish()
-    test_hardmax()
-    test_identity()
-    test_instancenormalization()
-    test_leakyrelu()
-    test_log()
-    test_logsoftmax()
-    test_matmul()
-    test_max()
-    test_maxpool()
-    test_mean()
-    test_min()
-    test_mul()
-    test_neg()
-    test_negativeloglikelihoodloss()
-    # ---------100 limited library
-    test_prelu()
-    test_pow()
-    test_reciprocal()
-    test_reducel1()
-    test_reducel2()
-    test_reducelogsum()
-    test_reducelogsumexp()
-    test_reducemax()
-    test_reducemean()
-    test_reducesum()
-    test_maxunpool()
-    test_forward_one_hot()
-    test_where()
-    test_slice()
-    test_pad()
-    test_batch_norm()
-    test_softmax()
-    test_mod()
-    test_forward_mean()
-    test_instance_norm()
-    test_lrn()
-    test_lstm()
-    test_binary_ops()
-    test_gru()
-    test_all_reduce_funcs()
-    test_roi_align()
-    test_split()
-    test_xor()
-    test_if()
-    test_softmax_cross_entropy()
-    test_logical()
-    test_scatternd()
+    #test_abs()
+    #test_acos()
+    #test_and()
+    #test_add()
+    #test_argmax()
+    #test_argmin()
+    #test_asin()
+    #test_asinh()
+    #test_atan()
+    #test_atanh()
+    #test_averagepool()
+    #test_batchnormalization()
+    #test_ceil()
+    #test_celu()
+    #test_clip()
+    #test_concat()
+    #test_conv()
+    #test_convtranspose()
+    #test_cos()
+    #test_cosh()
+    #test_depthtospace()
+    #test_div()
+    ## ------100 limited library
+    #test_einsum()
+    #test_elu()
+    #test_erf()
+    #test_exp()
+    #test_eyelike()
+    #test_floor()
+    #test_gather()
+    #test_gatherelement()
+    #test_gathernd()
+    #test_gemm()
+    #test_globalaveragepool()
+    #test_globalmaxpool()
+    #test_hardsigmoid()
+    #test_hardswish()
+    #test_hardmax()
+    #test_identity()
+    #test_instancenormalization()
+    #test_leakyrelu()
+    #test_log()
+    #test_logsoftmax()
+    #test_matmul()
+    #test_max()
+    #test_maxpool()
+    #test_mean()
+    #test_min()
+    #test_mul()
+    #test_neg()
+    #test_negativeloglikelihoodloss()
+    ## ---------100 limited library
+    #test_prelu()
+    #test_pow()
+    #test_reciprocal()
+    #test_reducel1()
+    #test_reducel2()
+    #test_reducelogsum()
+    #test_reducelogsumexp()
+    #test_reducemax()
+    #test_reducemean()
+    #test_reducesum()
+    #test_maxunpool()
+    #test_forward_one_hot()
+    #test_where()
+    #test_slice()
+    #test_pad()
+    #test_batch_norm()
+    #test_softmax()
+    #test_mod()
+    #test_forward_mean()
+    #test_instance_norm()
+    #test_lrn()
+    #test_lstm()
+    #test_binary_ops()
+    #test_gru()
+    #test_all_reduce_funcs()
+    #test_roi_align()
+    #test_split()
+    #test_xor()
+    #test_if()
+    #test_softmax_cross_entropy()
+    #test_logical()
+    #test_scatternd()
