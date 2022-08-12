@@ -1,4 +1,5 @@
 FROM nvcr.io/nvidia/tensorflow:20.06-tf1-py3
+#FROM nvcr.io/nvidia/tensorflow:21.08-tf1-py3
 RUN wget -O "llvm-9.0.1.src.tar.xz" https://github.com/llvm/llvm-project/releases/download/llvmorg-9.0.1/llvm-9.0.1.src.tar.xz \
     && tar -xvf llvm-9.0.1.src.tar.xz && mkdir llvm-9.0.1.src/build \
     && cd llvm-9.0.1.src/build && cmake -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD=X86 -DCMAKE_BUILD_TYPE="Release" -DCMAKE_INSTALL_PREFIX="/usr/local/llvm" .. && make -j8 && make install PREFIX="/usr/local/llvm"

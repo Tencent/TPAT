@@ -40,7 +40,6 @@ no_needed_plugin_ops = {
     "Constant",
     "ConstantOfShape",
     "Dropout",
-    "GridSample",
     "If",
     "Loop",
     "Shape",
