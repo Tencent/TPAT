@@ -256,6 +256,10 @@ class PluginTemplateParams(object):
 
     def dummy_onnx_ort_output_shape(self, graph):
         onnx_output_shape = []
+        if not graph.nodes:
+            for gi in graph.inputs:
+                onnx_output_shape.append(gi.shape)
+            return onnx_output_shape
         submodel = gs.export_onnx(graph)
         dummy_model = "dummy_model.onnx"
         onnx.save(submodel, dummy_model)
